@@ -3,20 +3,19 @@
   "name": "Nunus",
   "version": "1.0.1",
   "description": "Gray out news articles you've already viewed on NYT, Washington Post, and The Guardian. 'Viewed' means the top third was visible for at least 3 seconds.",
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Nunus"
+  },
   "content_scripts": [
     {
       "matches": [
-        "*://www.nytimes.com/",
-        "*://www.nytimes.com/*",
-        "*://www.washingtonpost.com/",
-        "*://www.washingtonpost.com/*",
-        "*://www.theguardian.com/",
-        "*://www.theguardian.com/*",
-        "*://theguardian.com/",
-        "*://theguardian.com/*",
-        "*://guardian.co.uk/",
-        "*://guardian.co.uk/*"
+        "https://www.nytimes.com/",
+        "https://washingtonpost.com/",
+        "https://www.theguardian.com/us"
       ],
       "js": [
         "core.js",

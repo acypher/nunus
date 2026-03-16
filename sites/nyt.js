@@ -8,27 +8,21 @@
 
   const selectors = [
     'article[data-story-id]',
+    '[data-testid="article-card"]',
+    '[data-testid="story-wrapper"]',
     'article.story',
     'article.lede',
     'article.theme-summary',
     'article',
-    'section.story-wrapper article',
-    '[data-testid="article-card"]',
-    '[data-testid="story-wrapper"]',
-    'section a[href*="nytimes.com/"][href*="/20"]',
-    '[data-testid="carouselOuterClass"] a[href*="nytimes.com/"]',
-    '[class*="PersonalizedAddOn"] a[href*="nytimes.com/"]',
-    '[class*="carouselOuterClass"] a[href*="nytimes.com/"]',
-    '[class*="tpl"] a[href*="nytimes.com/"]',
     '[class*="StoryWrapper"] a[href*="nytimes.com/"]',
     '[class*="storyWrapper"] a[href*="nytimes.com/"]',
     'a[href*="nytimes.com/"][href*="/20"]',
-    'a.tpl-lbl[href*="nytimes.com/"]',
-    'a[data-tpl][href*="nytimes.com/"]'
   ];
 
   function getArticleId(element) {
-    const link = element.querySelector(linkSelector) || element.closest(linkSelector) || (element.tagName === 'A' ? element : null);
+    const link = element.querySelector(linkSelector)
+      || element.closest(linkSelector)
+      || (element.tagName === 'A' ? element : null);
     if (!link || !link.href) return null;
     const url = new URL(link.href);
     if (!urlPattern.test(url.pathname)) return null;
@@ -58,7 +52,9 @@
 
     for (const selector of selectors) {
       for (const el of queryAll(document, selector)) {
-        const articleEl = el.tagName === 'A' ? el.closest(containerSelectors) || el : el;
+        const articleEl = el.tagName === 'A'
+          ? el.closest(containerSelectors) || el
+          : el;
         if (!articleEl) continue;
         const id = getArticleId(articleEl);
         add(id, articleEl);
@@ -68,7 +64,13 @@
     for (const link of queryAll(document, linkSelector)) {
       const id = getArticleId(link);
       if (id) {
-        const articleEl = link.closest('article') || link.closest('[data-testid="article-card"]') || link.closest('[data-testid="story-wrapper"]') || link.closest(containerSelectors) || link.parentElement?.closest('div') || link.parentElement || link;
+        const articleEl = link.closest('article')
+          || link.closest('[data-testid="article-card"]')
+          || link.closest('[data-testid="story-wrapper"]')
+          || link.closest(containerSelectors)
+          || link.parentElement?.closest('div')
+          || link.parentElement
+          || link;
         add(id, articleEl);
       }
     }

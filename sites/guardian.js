@@ -23,13 +23,27 @@
   ];
 
   function getArticleId(element) {
-    const link = element.querySelector(linkSelector) || element.closest(linkSelector) || (element.tagName === 'A' ? element : null);
+    const link = element.querySelector(linkSelector)
+      || element.closest(linkSelector)
+      || (element.tagName === 'A' ? element : null);
     if (!link || !link.href) return null;
     const url = new URL(link.href);
     if (!urlPattern.test(url.pathname)) return null;
     const title = link.textContent.trim().replace(/\s+/g, ' ');
     if (!title) return null;
     return title;
+  }
+
+  // Shadow DOM-aware query (consistent with nyt.js)
+  function* queryAll(root, selector) {
+    try {
+      yield* root.querySelectorAll(selector);
+    } catch (_) {}
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot) {
+        yield* queryAll(el.shadowRoot, selector);
+      }
+    }
   }
 
   function findArticles() {
@@ -41,18 +55,26 @@
     };
 
     for (const selector of selectors) {
-      for (const el of document.querySelectorAll(selector)) {
-        const articleEl = el.tagName === 'A' ? el.closest(containerSelectors) || el : el;
+      for (const el of queryAll(document, selector)) {
+        const articleEl = el.tagName === 'A'
+          ? el.closest(containerSelectors) || el
+          : el;
         if (!articleEl) continue;
         const id = getArticleId(articleEl);
         add(id, articleEl);
       }
     }
 
-    for (const link of document.querySelectorAll(linkSelector)) {
+    for (const link of queryAll(document, linkSelector)) {
       const id = getArticleId(link);
       if (id) {
-        const articleEl = link.closest('article') || link.closest('[data-link-name]') || link.closest('[data-component]') || link.closest(containerSelectors) || link.parentElement?.closest('div') || link.parentElement || link;
+        const articleEl = link.closest('article')
+          || link.closest('[data-link-name]')
+          || link.closest('[data-component]')
+          || link.closest(containerSelectors)
+          || link.parentElement?.closest('div')
+          || link.parentElement
+          || link;
         add(id, articleEl);
       }
     }

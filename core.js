@@ -6,6 +6,7 @@
 const VIEW_THRESHOLD_MS = 3000;
 const CHECK_INTERVAL_MS = 500;
 const STORAGE_KEY = 'nunus_viewed_articles';
+const LEGACY_STORAGE_KEY = 'nunusnyt_viewed_articles';
 
 const VIEWED_STYLE = {
   opacity: '0.4',
@@ -20,34 +21,31 @@ function isTopThirdVisible(element) {
   return rect.top < viewportHeight && topThirdBottom > 0;
 }
 
-const LEGACY_STORAGE_KEY = 'nunusnyt_viewed_articles';
-
-function isUrlBasedId(id) {
-  return typeof id === 'string' && (id.startsWith('http://') || id.startsWith('https://'));
-}
+// In-memory cache — avoids hitting chrome.storage on every markAsViewed call
+let _viewedCache = null;
 
 async function loadViewedArticles() {
   const result = await chrome.storage.local.get([STORAGE_KEY, LEGACY_STORAGE_KEY]);
   let current = new Set(result[STORAGE_KEY] || []);
   const legacy = result[LEGACY_STORAGE_KEY] || [];
 
+  // Migrate legacy storage
   if (legacy.length > 0) {
     legacy.forEach(id => current.add(id));
     await chrome.storage.local.remove(LEGACY_STORAGE_KEY);
-  }
-
-  if ([...current].some(isUrlBasedId)) {
-    current = new Set();
-    await chrome.storage.local.set({ [STORAGE_KEY]: [] });
-  } else if (legacy.length > 0) {
     await chrome.storage.local.set({ [STORAGE_KEY]: [...current] });
   }
 
   return current;
 }
 
+async function getViewed() {
+  if (!_viewedCache) _viewedCache = await loadViewedArticles();
+  return _viewedCache;
+}
+
 async function markAsViewed(articleId) {
-  const viewed = await loadViewedArticles();
+  const viewed = await getViewed();
   viewed.add(articleId);
   await chrome.storage.local.set({ [STORAGE_KEY]: [...viewed] });
 }
@@ -64,9 +62,10 @@ function applyViewedStyle(element) {
  * @param {Object} site - { isHomepage, findArticles }
  */
 async function run(site) {
-  const viewedArticles = await loadViewedArticles();
+  const viewedArticles = await getViewed();
   const articles = site.findArticles();
 
+  // Apply viewed style to already-seen articles immediately
   for (const [id, elements] of articles) {
     if (viewedArticles.has(id)) {
       for (const element of elements) {
@@ -81,17 +80,18 @@ async function run(site) {
   const checkVisibility = async () => {
     for (const [id, elements] of articles) {
       if (!trackedIds.has(id)) continue;
-
-      const anyVisible = [...elements].some(el => el.dataset.nunusViewed !== 'true' && isTopThirdVisible(el));
+      const anyVisible = [...elements].some(el =>
+        el.dataset.nunusViewed !== 'true' && isTopThirdVisible(el)
+      );
       if (anyVisible) {
         const current = visibilityTime.get(id) || 0;
         const newTime = current + CHECK_INTERVAL_MS;
         visibilityTime.set(id, newTime);
-
         if (newTime >= VIEW_THRESHOLD_MS) {
           trackedIds.delete(id);
           visibilityTime.delete(id);
           await markAsViewed(id);
+          for (const el of articles.get(id)) applyViewedStyle(el);
         }
       } else {
         visibilityTime.set(id, 0);
@@ -99,17 +99,21 @@ async function run(site) {
     }
   };
 
-  setInterval(() => { void checkVisibility(); }, CHECK_INTERVAL_MS);
-  void checkVisibility();
+  // Poll only when tab is visible
+  const checkVisibilityLoop = () => {
+    if (document.visibilityState !== 'hidden') {
+      void checkVisibility();
+    }
+    setTimeout(checkVisibilityLoop, CHECK_INTERVAL_MS);
+  };
+  checkVisibilityLoop();
 
   const mergeNewArticles = () => {
     const newArticles = site.findArticles();
     for (const [id, elements] of newArticles) {
       if (viewedArticles.has(id)) {
         for (const element of elements) {
-          if (element.dataset.nunusViewed !== 'true') {
-            applyViewedStyle(element);
-          }
+          if (element.dataset.nunusViewed !== 'true') applyViewedStyle(element);
         }
       }
       if (!articles.has(id)) {
@@ -126,10 +130,18 @@ async function run(site) {
     }
   };
 
-  const observer = new MutationObserver(mergeNewArticles);
+  // MutationObserver handles dynamic content
+  const observer = new MutationObserver(() => {
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(mergeNewArticles);
+    } else {
+      mergeNewArticles();
+    }
+  });
   observer.observe(document.body, { childList: true, subtree: true });
 
-  [2000, 5000, 8000, 12000, 15000, 20000].forEach(ms => setTimeout(mergeNewArticles, ms));
+  // One safety-net rescan for lazy-loaded content
+  setTimeout(mergeNewArticles, 2000);
 }
 
 window.NunusRun = run;
