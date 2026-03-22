@@ -15,14 +15,19 @@
     'a[href*="washingtonpost.com/"][href*="_story.html"]'
   ];
 
+  function normalizeTitle(text) {
+    let t = text.split('\n')[0].trim().replace(/\s+/g, ' ');
+    t = t.replace(/\s+By\s+[A-Za-z].*$/i, '').trim();
+    t = t.replace(/\s+[-|]\s+.*$/, '').trim();
+    return t || null;
+  }
+
   function getArticleId(element) {
     const link = element.querySelector(linkSelector) || element.closest(linkSelector) || (element.tagName === 'A' ? element : null);
     if (!link || !link.href) return null;
     const url = new URL(link.href);
     if (!urlPattern.test(url.pathname)) return null;
-    const title = link.textContent.trim().replace(/\s+/g, ' ');
-    if (!title) return null;
-    return title;
+    return normalizeTitle(link.textContent);
   }
 
   function findArticles() {
@@ -58,6 +63,17 @@
     return path === '/' || path === '' || path === '/index.html';
   }
 
+  function getVisibilityTargets(root) {
+    const link =
+      root.querySelector(linkSelector) || root.closest(linkSelector);
+    if (link) return [link];
+    return [root];
+  }
+
   window.NunusSites = window.NunusSites || {};
-  window.NunusSites.washingtonpost = { findArticles, isHomepage };
+  window.NunusSites.washingtonpost = {
+    findArticles,
+    isHomepage,
+    getVisibilityTargets
+  };
 })();

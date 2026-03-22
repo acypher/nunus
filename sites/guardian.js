@@ -22,6 +22,13 @@
     'a[href*="theguardian.com/"][href*="/science/"], a[href*="guardian.co.uk/"][href*="/science/"]'
   ];
 
+  function normalizeTitle(text) {
+    let t = text.split('\n')[0].trim().replace(/\s+/g, ' ');
+    t = t.replace(/\s+By\s+[A-Za-z].*$/i, '').trim();
+    t = t.replace(/\s+[-|]\s+.*$/, '').trim();
+    return t || null;
+  }
+
   function getArticleId(element) {
     const link = element.querySelector(linkSelector)
       || element.closest(linkSelector)
@@ -29,9 +36,7 @@
     if (!link || !link.href) return null;
     const url = new URL(link.href);
     if (!urlPattern.test(url.pathname)) return null;
-    const title = link.textContent.trim().replace(/\s+/g, ' ');
-    if (!title) return null;
-    return title;
+    return normalizeTitle(link.textContent);
   }
 
   // Shadow DOM-aware query (consistent with nyt.js)
@@ -87,6 +92,13 @@
     return path === '/' || path === '' || path === '/us' || path === '/uk';
   }
 
+  function getVisibilityTargets(root) {
+    const link =
+      root.querySelector(linkSelector) || root.closest(linkSelector);
+    if (link) return [link];
+    return [root];
+  }
+
   window.NunusSites = window.NunusSites || {};
-  window.NunusSites.guardian = { findArticles, isHomepage };
+  window.NunusSites.guardian = { findArticles, isHomepage, getVisibilityTargets };
 })();

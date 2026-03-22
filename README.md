@@ -4,7 +4,7 @@ A Chrome extension that grays out news articles you've already viewed on the hom
 
 **Supported News sites:** New York Times, Washington Post, The Guardian, The Epoch Times
 
-**"Viewed"** means the top third of the article was visible on your screen for at least 3 seconds in a previous session.
+**"Viewed"** means at least 20 pixels of the article headline (width and height) were on screen for at least 3 seconds in a previous session.
 
 ## Installation
 
@@ -15,8 +15,10 @@ A Chrome extension that grays out news articles you've already viewed on the hom
 
 ## How it works
 
+- If the **same headline** appears in more than one place on the page, after you read it **this tab session** only **one** of those cards stays ungrayed; the other placements are grayed as duplicates.
+- On a supported **homepage**, **Option (⌥) + ↓** scrolls down at least one screen and lands on the next **non-gray** article with its top aligned to the top of the viewport (skipping long runs of already-viewed cards).
 - When you visit a supported homepage, articles you've viewed before appear grayed out (reduced opacity + grayscale)
-- As you scroll, any article whose top third stays visible for 3+ seconds is marked as viewed and saved
+- As you scroll, any article whose headline has at least 20×20px in view for 3+ seconds is marked as viewed and saved
 - Viewed state persists across browser sessions via Chrome's local storage
 
 ## Versioning

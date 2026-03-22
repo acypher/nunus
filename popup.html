@@ -35,13 +35,54 @@
             font-size: 12px;
             color: #555;
         }
+
+        .secondary-btn {
+            background: #3498db;
+            margin-top: 8px;
+        }
+
+        .secondary-btn:hover {
+            background: #2980b9;
+        }
+
+        #viewedResults {
+            margin-top: 12px;
+            font-size: 12px;
+            max-height: 550px;
+            overflow: auto;
+            resize: vertical;
+        }
+
+        #viewedResults.expanded {
+            min-height: 400px;
+        }
+
+        #viewedResults h4 {
+            margin: 12px 0 6px;
+            font-size: 12px;
+            color: #333;
+        }
+
+        #viewedResults ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        #viewedResults li {
+            margin: 2px 0;
+        }
+
+        #viewedResults .clear-btn {
+            margin-bottom: 12px;
+        }
     </style>
 </head>
 
 <body>
     <h3>Nunus</h3>
-    <button id="clearBtn">Clear Viewed History</button>
+    <button id="showViewedBtn" class="secondary-btn">Show Viewed Articles</button>
     <div id="status"></div>
+    <div id="viewedResults"></div>
     <script src="popup.js"></script>
 </body>
 

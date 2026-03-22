@@ -1,19 +1,33 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "1.0.1",
-  "description": "Gray out news articles you've already viewed on NYT, Washington Post, and The Guardian. 'Viewed' means the top third was visible for at least 3 seconds.",
+  "version": "2.1.0",
+  "description": "Gray out news articles you've already viewed on NYT, Washington Post, and The Guardian. 'Viewed' means at least 20px of the headline was visible for 3 seconds.",
+  "icons": {
+    "48": "icons/letterNu48.png",
+    "96": "icons/letterNu96.png"
+  },
   "permissions": [
-    "storage"
+    "storage",
+    "activeTab",
+    "scripting"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
+    "default_icon": {
+      "48": "icons/letterNu48.png",
+      "96": "icons/letterNu96.png"
+    },
     "default_popup": "popup.html",
     "default_title": "Nunus"
   },
   "content_scripts": [
     {
       "matches": [
-        "https://www.nytimes.com/",
+        "https://www.nytimes.com/*",
+        "https://nytimes.com/*",
         "https://washingtonpost.com/",
         "https://www.theguardian.com/us"
       ],

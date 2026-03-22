@@ -1,0 +1,20 @@
+---
+description: Article identification rules for Nunus - MUST follow
+alwaysApply: true
+---
+
+# Article Identification (Nunus)
+
+When identifying or defining articles in this extension, follow these rules strictly:
+
+## 1. Use ONLY the article's title
+
+The article ID must be derived from the article's title. Never use URLs, slugs, or other identifiers as the article ID.
+
+## 2. Use position for multiple occurrences
+
+When the same article appears multiple times on a single page, use the article's position on the page to distinguish between occurrences.
+
+## 3. URLs are for verification only
+
+URLs may be used ONLY to verify that an element is indeed an article (e.g., matching URL patterns to filter out non-articles). URLs must NOT be used as the article ID or for storage keys.
