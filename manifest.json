@@ -1,19 +1,22 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "2.1.0",
-  "description": "Gray out news articles you've already viewed on NYT, Washington Post, and The Guardian. 'Viewed' means at least 20px of the headline was visible for 3 seconds.",
+  "version": "1.3.1",
+  "description": "On the nytimes.com front page, Nunus grays out article titles you've already seen. Also, autoplay is removed from videos. Works in Chrome and Firefox.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "nunus@nunus.extension",
+      "strict_min_version": "128.0"
+    }
+  },
   "icons": {
     "48": "icons/letterNu48.png",
     "96": "icons/letterNu96.png"
   },
-  "permissions": [
-    "storage",
-    "activeTab",
-    "scripting"
-  ],
+  "permissions": ["storage", "activeTab", "scripting"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
   },
   "action": {
     "default_icon": {
@@ -28,6 +31,35 @@
       "matches": [
         "https://www.nytimes.com/*",
         "https://nytimes.com/*",
+        "https://*.nytimes.com/*"
+      ],
+      "js": ["sites/nyt-autoplay-pref.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.nytimes.com/*",
+        "https://nytimes.com/*",
+        "https://*.nytimes.com/*"
+      ],
+      "js": ["sites/nyt-betamax-main.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.nytimes.com/*",
+        "https://nytimes.com/*",
+        "https://*.nytimes.com/*"
+      ],
+      "js": ["sites/nyt-videos.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.nytimes.com/*",
+        "https://nytimes.com/*",
+        "https://*.nytimes.com/*",
         "https://washingtonpost.com/",
         "https://www.theguardian.com/us"
       ],

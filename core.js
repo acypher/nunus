@@ -10,12 +10,16 @@
  * canonical occurrence stays ungrayed; extra placements are grayed as duplicates.
  */
 
+/** WebExtension namespace: Firefox uses `browser`, Chromium uses `chrome`. */
+const ext = globalThis.browser ?? globalThis.chrome;
+
 const VIEW_THRESHOLD_MS = 3000;
 const CHECK_INTERVAL_MS = 500;
 /** Min visible width/height (px) of the title rect inside the viewport. */
 const TITLE_VISIBLE_MIN_PX = 20;
 const STORAGE_KEY = 'nunus_viewed_articles';
 const LEGACY_STORAGE_KEY = 'nunusnyt_viewed_articles';
+const STORAGE_BLOCK_TOPICS_KEY = 'nunus_block_topics';
 const SESSION_KEY = 'nunus_session_viewed';
 
 /** storage key -> root kept ungrayed this session when the same story appears twice */
@@ -24,6 +28,13 @@ const sessionCanonicalRootByKey = new Map();
 const VIEWED_STYLE = {
   opacity: '0.4',
   filter: 'grayscale(0.8)',
+  transition: 'opacity 0.3s ease, filter 0.3s ease'
+};
+
+/** Stronger dim for headlines matching a user "Enough, already" topic (popup list). */
+const TOPIC_BLOCKED_STYLE = {
+  opacity: '0.2',
+  filter: 'grayscale(1) brightness(0.72)',
   transition: 'opacity 0.3s ease, filter 0.3s ease'
 };
 
@@ -71,19 +82,19 @@ function titleVisibleForTracking(site, articleRoot) {
   return targets.some(el => el && isRectIntersectingViewport(el));
 }
 
-// In-memory cache — avoids hitting chrome.storage on every markAsViewed call
+// In-memory cache — avoids hitting extension storage on every markAsViewed call
 let _viewedCache = null;
 
 async function loadViewedArticles() {
-  const result = await chrome.storage.local.get([STORAGE_KEY, LEGACY_STORAGE_KEY]);
+  const result = await ext.storage.local.get([STORAGE_KEY, LEGACY_STORAGE_KEY]);
   let current = new Set(result[STORAGE_KEY] || []);
   const legacy = result[LEGACY_STORAGE_KEY] || [];
 
   // Migrate legacy storage
   if (legacy.length > 0) {
     legacy.forEach(id => current.add(id));
-    await chrome.storage.local.remove(LEGACY_STORAGE_KEY);
-    await chrome.storage.local.set({ [STORAGE_KEY]: [...current] });
+    await ext.storage.local.remove(LEGACY_STORAGE_KEY);
+    await ext.storage.local.set({ [STORAGE_KEY]: [...current] });
   }
 
   return current;
@@ -107,7 +118,7 @@ async function markAsViewed(articleId, canonicalRoot) {
   const key = getViewedKey(hostname, articleId);
   const viewed = await getViewed();
   viewed.add(key);
-  await chrome.storage.local.set({ [STORAGE_KEY]: [...viewed] });
+  await ext.storage.local.set({ [STORAGE_KEY]: [...viewed] });
 
   const sessionViewed = getTabSessionViewedSet();
   sessionViewed.add(key);
@@ -133,22 +144,86 @@ function removeViewedStyle(element) {
   delete element.dataset.nunusViewed;
 }
 
-function syncGrayForElements(elements, id, viewedArticles, sessionViewed, hostname) {
-  const gray = shouldGrayOut(viewedArticles, sessionViewed, hostname, id);
+function normalizeBlockTopics(raw) {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.map(t => String(t).trim()).filter(Boolean))];
+}
+
+async function loadBlockTopics() {
+  const r = await ext.storage.local.get({ [STORAGE_BLOCK_TOPICS_KEY]: [] });
+  return normalizeBlockTopics(r[STORAGE_BLOCK_TOPICS_KEY]);
+}
+
+function titleMatchesBlockTopic(titleId, blockTopics) {
+  if (!blockTopics.length) return false;
+  const t = (titleId || '').toLowerCase();
+  return blockTopics.some(topic => {
+    const s = String(topic).trim().toLowerCase();
+    return s.length > 0 && t.includes(s);
+  });
+}
+
+function applyTopicBlockedStyle(element) {
+  element.style.opacity = TOPIC_BLOCKED_STYLE.opacity;
+  element.style.filter = TOPIC_BLOCKED_STYLE.filter;
+  element.style.transition = TOPIC_BLOCKED_STYLE.transition;
+  element.dataset.nunusTopicBlocked = 'true';
+}
+
+function removeTopicBlockedStyle(element) {
+  if (element.dataset.nunusTopicBlocked !== 'true') return;
+  element.style.opacity = '';
+  element.style.filter = '';
+  element.style.transition = '';
+  delete element.dataset.nunusTopicBlocked;
+}
+
+function syncGrayForElements(
+  elements,
+  id,
+  viewedArticles,
+  sessionViewed,
+  hostname,
+  blockTopics
+) {
+  const key = getViewedKey(hostname, id);
+  let storedCanonical = sessionCanonicalRootByKey.get(key);
+  if (storedCanonical && !storedCanonical.isConnected) {
+    sessionCanonicalRootByKey.delete(key);
+    storedCanonical = undefined;
+  }
+  const inStorage = isArticleViewed(viewedArticles, hostname, id);
+  const inSession = sessionViewed.has(key);
+  let canonicalLive = storedCanonical?.isConnected ? storedCanonical : null;
+  if (inSession && !canonicalLive && elements.length) {
+    const arr = [...elements].filter(el => el.isConnected);
+    sortRootsByDocumentOrder(arr);
+    canonicalLive = arr[0] || null;
+  }
+
+  const topics = blockTopics || [];
+
   for (const element of elements) {
+    if (titleMatchesBlockTopic(id, topics)) {
+      removeViewedStyle(element);
+      applyTopicBlockedStyle(element);
+      continue;
+    }
+    removeTopicBlockedStyle(element);
+
+    let gray = false;
+    if (!inStorage) {
+      gray = false;
+    } else if (!inSession) {
+      gray = true;
+    } else if (canonicalLive && element !== canonicalLive) {
+      gray = true;
+    } else {
+      gray = false;
+    }
     if (gray) applyViewedStyle(element);
     else removeViewedStyle(element);
   }
-}
-
-/**
- * Run the main logic with a site-specific handler.
- * @param {Object} site - { isHomepage, findArticles, getVisibilityTargets? }
- */
-function shouldGrayOut(viewedArticles, sessionViewed, hostname, articleId) {
-  if (!isArticleViewed(viewedArticles, hostname, articleId)) return false;
-  const key = getViewedKey(hostname, articleId);
-  return !sessionViewed.has(key);
 }
 
 /** Unique article roots from findArticles(), in document order. */
@@ -158,13 +233,17 @@ function flattenArticleRoots(articlesMap) {
     for (const el of set) all.add(el);
   }
   const arr = [...all];
-  arr.sort((a, b) => {
+  sortRootsByDocumentOrder(arr);
+  return arr;
+}
+
+function sortRootsByDocumentOrder(roots) {
+  roots.sort((a, b) => {
     const pos = a.compareDocumentPosition(b);
     if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
     if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
     return 0;
   });
-  return arr;
 }
 
 function maxScrollY() {
@@ -177,8 +256,9 @@ function maxScrollY() {
 }
 
 /**
- * Alt/Option + ArrowDown: scroll ≥1 viewport past current position, skipping gray
- * cards until a non-gray article can sit at the top of the viewport.
+ * Alt/Option + ArrowDown: scroll so the next unviewed article can sit at the top
+ * of the viewport (skipping gray cards). If there is no such article below,
+ * scroll to the bottom of the page.
  */
 function registerSkipGrayScroll(site) {
   if (typeof site.isHomepage !== 'function') return;
@@ -204,6 +284,7 @@ function registerSkipGrayScroll(site) {
         if (!el.isConnected) continue;
         const docTop = el.getBoundingClientRect().top + window.scrollY;
         if (docTop + 0.5 < minScrollY) continue;
+        if (el.dataset.nunusTopicBlocked === 'true') continue;
         if (el.dataset.nunusViewed === 'true') continue;
         window.scrollTo({
           top: Math.min(docTop, cap),
@@ -212,7 +293,7 @@ function registerSkipGrayScroll(site) {
         return;
       }
 
-      window.scrollTo({ top: Math.min(minScrollY, cap), behavior: 'smooth' });
+      window.scrollTo({ top: cap, behavior: 'smooth' });
     },
     true
   );
@@ -222,64 +303,110 @@ async function run(site) {
   const hostname = window.location.hostname;
   const viewedArticles = await getViewed();
   const sessionViewed = getTabSessionViewedSet();
+  let blockTopics = await loadBlockTopics();
   const articles = site.findArticles();
 
-  const visibilityTime = new Map();
-  const trackedIds = new Set([...articles.keys()].filter(id => !isArticleViewed(viewedArticles, hostname, id)));
+  /** performance.now() when the headline first met the visibility rule this dwell episode */
+  const dwellStartById = new Map();
+  const trackedIds = new Set(
+    [...articles.keys()].filter(
+      id =>
+        !isArticleViewed(viewedArticles, hostname, id) &&
+        !titleMatchesBlockTopic(id, blockTopics)
+    )
+  );
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      dwellStartById.clear();
+    }
+  });
 
   const mergeNewArticles = async () => {
+    blockTopics = await loadBlockTopics();
     const sessionNow = getTabSessionViewedSet();
     const newArticles = site.findArticles();
     for (const [id, elements] of newArticles) {
       if (!articles.has(id)) {
         articles.set(id, new Set(elements));
-        if (!isArticleViewed(viewedArticles, hostname, id)) trackedIds.add(id);
       } else {
         for (const element of elements) articles.get(id).add(element);
       }
-      syncGrayForElements([...elements], id, viewedArticles, sessionNow, hostname);
+      if (titleMatchesBlockTopic(id, blockTopics)) trackedIds.delete(id);
+      else if (!isArticleViewed(viewedArticles, hostname, id)) trackedIds.add(id);
+      syncGrayForElements(
+        [...elements],
+        id,
+        viewedArticles,
+        sessionNow,
+        hostname,
+        blockTopics
+      );
     }
   };
 
   // Sync gray from persistent storage vs this tab's session; strip when session has the key.
   for (const [id, elements] of articles) {
-    syncGrayForElements([...elements], id, viewedArticles, sessionViewed, hostname);
+    syncGrayForElements(
+      [...elements],
+      id,
+      viewedArticles,
+      sessionViewed,
+      hostname,
+      blockTopics
+    );
   }
 
+  try {
+    ext.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local' || !changes[STORAGE_BLOCK_TOPICS_KEY]) return;
+      void mergeNewArticles();
+    });
+  } catch (_) {}
+
+  let visibilityCheckRunning = false;
+
   const checkVisibility = async () => {
+    const now = performance.now();
     for (const [id, elements] of articles) {
       if (!trackedIds.has(id)) continue;
+      if (titleMatchesBlockTopic(id, blockTopics)) continue;
 
       const visibleRoots = [...elements].filter(
         el =>
           el.dataset.nunusViewed !== 'true' &&
+          el.dataset.nunusTopicBlocked !== 'true' &&
           titleVisibleForTracking(site, el)
       );
       sortRootsByDocumentOrder(visibleRoots);
 
       if (visibleRoots.length > 0) {
-        const current = visibilityTime.get(id) || 0;
-        const newTime = current + CHECK_INTERVAL_MS;
-        visibilityTime.set(id, newTime);
-        if (newTime >= VIEW_THRESHOLD_MS) {
+        if (!dwellStartById.has(id)) {
+          dwellStartById.set(id, now);
+        }
+        const start = dwellStartById.get(id);
+        if (now - start >= VIEW_THRESHOLD_MS) {
           trackedIds.delete(id);
-          visibilityTime.delete(id);
+          dwellStartById.delete(id);
           const canonical = visibleRoots[0];
           await markAsViewed(id, canonical);
           await mergeNewArticles();
         }
       } else {
-        visibilityTime.set(id, 0);
+        dwellStartById.delete(id);
       }
     }
   };
 
-  // Poll only when tab is visible
+  // Poll only when tab is visible. Skip re-entrancy while a run awaits storage so
+  // overlapping timers cannot credit extra dwell toward the threshold.
   const checkVisibilityLoop = () => {
-    if (document.visibilityState !== 'hidden') {
-      void checkVisibility();
-    }
     setTimeout(checkVisibilityLoop, CHECK_INTERVAL_MS);
+    if (document.visibilityState === 'hidden' || visibilityCheckRunning) return;
+    visibilityCheckRunning = true;
+    void checkVisibility().finally(() => {
+      visibilityCheckRunning = false;
+    });
   };
   checkVisibilityLoop();
 
