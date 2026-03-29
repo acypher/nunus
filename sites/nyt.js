@@ -17,6 +17,25 @@
     return t || null;
   }
 
+  /** Opinion / byline cards: <a data-tpl="l"><p>Author</p><p class="indicate-hover">Headline</p></a> */
+  function titleFromLabelLink(a) {
+    if (!a) return null;
+    const hoverP = a.querySelector('p.indicate-hover');
+    if (hoverP) {
+      const id = normalizeTitle(hoverP.textContent);
+      if (id) return id;
+    }
+    return normalizeTitle(a.textContent);
+  }
+
+  function visibilityTargetForLabelLink(a) {
+    if (!a) return null;
+    const hoverP = a.querySelector('p.indicate-hover');
+    if (hoverP && normalizeTitle(hoverP.textContent)) return hoverP;
+    if (normalizeTitle(a.textContent)) return a;
+    return null;
+  }
+
   function isNytimesHost(hostname) {
     return (
       hostname === 'www.nytimes.com' ||
@@ -50,7 +69,9 @@
     const uri = a.getAttribute('data-uri');
     if (
       uri &&
-      (uri.startsWith('nyt://article/') || uri.startsWith('nyt://interactive/'))
+      (uri.startsWith('nyt://article/') ||
+        uri.startsWith('nyt://interactive/') ||
+        uri.startsWith('nyt://promo/'))
     ) {
       return true;
     }
@@ -145,13 +166,19 @@
   /**
    * Prefer structured headline nodes; fall back to first qualifying in-root link text.
    * Video / magazine heroes: <p data-tpl="h"><a data-tpl="l"><span>Title</span></a></p>
+   * Category + headline in [data-tpl="h"]: <p>Section</p><p class="indicate-hover">Title</p>
    */
   function getTitleFromRoot(root) {
     const hSlot = root.querySelector('[data-tpl="h"]');
     if (hSlot) {
       const lblInH = hSlot.querySelector('a[data-tpl="l"]');
       if (lblInH) {
-        const id = normalizeTitle(lblInH.textContent);
+        const id = titleFromLabelLink(lblInH);
+        if (id) return id;
+      }
+      const hoverInH = hSlot.querySelector('p.indicate-hover');
+      if (hoverInH) {
+        const id = normalizeTitle(hoverInH.textContent);
         if (id) return id;
       }
       const p = hSlot.querySelector('p');
@@ -164,7 +191,7 @@
     }
     const lbl = root.querySelector('a[data-tpl="l"]');
     if (lbl) {
-      const id = normalizeTitle(lbl.textContent);
+      const id = titleFromLabelLink(lbl);
       if (id) return id;
     }
     const hover = root.querySelector('p.indicate-hover');
@@ -200,13 +227,21 @@
     const hSlot = root.querySelector('[data-tpl="h"]');
     if (hSlot) {
       const lblInH = hSlot.querySelector('a[data-tpl="l"]');
-      if (lblInH && normalizeTitle(lblInH.textContent)) return [lblInH];
+      if (lblInH) {
+        const t = visibilityTargetForLabelLink(lblInH);
+        if (t) return [t];
+      }
+      const hoverInH = hSlot.querySelector('p.indicate-hover');
+      if (hoverInH && normalizeTitle(hoverInH.textContent)) return [hoverInH];
       const p = hSlot.querySelector('p');
       if (p && normalizeTitle(p.textContent)) return [p];
       if (normalizeTitle(hSlot.textContent)) return [hSlot];
     }
     const lbl = root.querySelector('a[data-tpl="l"]');
-    if (lbl && normalizeTitle(lbl.textContent)) return [lbl];
+    if (lbl) {
+      const t = visibilityTargetForLabelLink(lbl);
+      if (t) return [t];
+    }
     const hover = root.querySelector('p.indicate-hover');
     if (hover && normalizeTitle(hover.textContent)) return [hover];
     if (root.tagName === 'ARTICLE') {
@@ -250,6 +285,26 @@
     }
     for (const el of queryAll(document, '[data-testid$="-section"] article')) {
       if (rootHasArticleAnchor(el)) candidates.add(el);
+    }
+    // Homepage / package rails: <ul><li><article>…<div class="… assetWrapper"> without story-wrapper
+    for (const el of queryAll(document, 'li > article')) {
+      if (!el.querySelector('.assetWrapper')) continue;
+      if (rootHasArticleAnchor(el)) candidates.add(el);
+    }
+
+    // When the main card link is section > a > … > div.story-wrapper[data-tpl="sli"],
+    // the anchor pass adds the section and the sli pass adds the inner roots.
+    // filterOutermost would keep only the section; a single section wrapping multiple
+    // columns would then collapse to one article. Prefer inner sli cards whenever
+    // present (heroes without sli still use section-only roots).
+    for (const el of [...candidates]) {
+      if (
+        el.tagName === 'SECTION' &&
+        el.classList.contains('story-wrapper') &&
+        el.querySelector('div.story-wrapper[data-tpl="sli"]')
+      ) {
+        candidates.delete(el);
+      }
     }
 
     return filterOutermost([...candidates]);

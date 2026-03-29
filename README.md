@@ -1,10 +1,11 @@
 # Nunus
 
-A Chrome extension that grays out news articles you've already viewed on the home pages of supported news sites.
+On the nytimes.com front page, this Nunus Chrome extension grays out article titles you've already seen.   
+Also, autoplay is removed from videos.   
+Option-downArrow jumps to the next unseen title.  
+'Already seen' means at least 20 pixels of the title were on the screen for 3 seconds in a previous session.  
+If the same title appears again later on the page, the later occurrences are immediately grayed out.
 
-**Supported News sites:** New York Times, Washington Post, The Guardian, The Epoch Times
-
-**"Viewed"** means at least 20 pixels of the article headline (width and height) were on screen for at least 3 seconds in a previous session.
 
 ## Installation
 
@@ -12,14 +13,6 @@ A Chrome extension that grays out news articles you've already viewed on the hom
 2. Enable **Developer mode** (toggle in top right)
 3. Click **Load unpacked**
 4. Select the Nunus folder
-
-## How it works
-
-- If the **same headline** appears in more than one place on the page, after you read it **this tab session** only **one** of those cards stays ungrayed; the other placements are grayed as duplicates.
-- On a supported **homepage**, **Option (⌥) + ↓** scrolls down at least one screen and lands on the next **non-gray** article with its top aligned to the top of the viewport (skipping long runs of already-viewed cards).
-- When you visit a supported homepage, articles you've viewed before appear grayed out (reduced opacity + grayscale)
-- As you scroll, any article whose headline has at least 20×20px in view for 3+ seconds is marked as viewed and saved
-- Viewed state persists across browser sessions via Chrome's local storage
 
 ## Versioning
 
@@ -35,10 +28,11 @@ Increment the version in `manifest.json` when making changes.
 
 - `core.js` - Shared logic (storage, visibility tracking, styling)
 - `content.js` - Entry point; dispatches to site handlers
-- `sites/nyt.js` - New York Times
+- `sites/nyt.js` - New York Times article detection / gray-out
+- `sites/nyt-betamax-main.js` - NYT MAIN-world `play()` hook (Betamax, cinemagraph, VHS grid, Gallery carousel)
+- `sites/nyt-videos.js` - NYT isolated-world video attribute / iframe tweaks
 - `sites/washingtonpost.js` - Washington Post
 - `sites/guardian.js` - The Guardian
-- `sites/epochtimes.js` - The Epoch Times
 
 To add a new site, create `sites/newsite.js` following the pattern of existing handlers, register it in `content.js` and `manifest.json`, and add the site's `findArticles` and `isHomepage` functions.
 
