@@ -100,6 +100,55 @@
             margin: 2px 0;
         }
 
+        .article-panel-toolbar {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            margin: 8px 0 8px;
+        }
+
+        #articleListFilter {
+            flex: 1;
+            min-width: 0;
+            padding: 6px 8px;
+            font-size: 12px;
+            border: 1px solid #bdbdbd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        #viewedResults .copy-list-btn {
+            width: auto;
+            flex-shrink: 0;
+            padding: 6px 10px;
+            font-size: 11px;
+            margin: 0;
+            background: #607d8b;
+            border-radius: 4px;
+        }
+
+        #viewedResults .copy-list-btn:hover {
+            background: #546e7a;
+        }
+
+        #viewedResults .article-title-list {
+            margin: 0;
+            padding-left: 18px;
+            user-select: text;
+            cursor: text;
+        }
+
+        #viewedResults .article-title-list li {
+            margin: 4px 0;
+            line-height: 1.4;
+            user-select: text;
+        }
+
+        #viewedResults .article-title-list .article-title {
+            user-select: text;
+            cursor: text;
+        }
+
         #viewedResults .clear-btn {
             width: auto;
             max-width: 100%;
@@ -241,6 +290,7 @@
     <button id="showNewlyViewedBtn" class="secondary-btn show-panel-btn">Show Newly Viewed Articles</button>
     <div id="status"></div>
     <div id="viewedResults"></div>
+    <script src="ext-chrome-shim.js"></script>
     <script src="popup.js"></script>
 </body>
 

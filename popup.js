@@ -1,4 +1,4 @@
-/** WebExtension namespace: Firefox uses `browser`, Chromium uses `chrome`. */
+/** WebExtension namespace: prefer `browser` when present, else `chrome`. */
 const ext = globalThis.browser ?? globalThis.chrome;
 
 const STORAGE_KEY = 'nunus_viewed_articles';
@@ -107,6 +107,98 @@ function noHostMessage() {
   return '<p style="color:#888">Open a supported news site first.</p>';
 }
 
+/**
+ * @param {string[]} titles
+ * @param {{ clearButtonId: string, clearButtonLabel: string, headingHtml: string, emptyMessage: string }} opts
+ */
+function buildArticleListPanelHtml(titles, opts) {
+  let html = `<button type="button" id="${opts.clearButtonId}" class="clear-btn">${opts.clearButtonLabel}</button>`;
+  html += opts.headingHtml;
+  if (titles.length) {
+    html += `<div class="article-panel-toolbar">
+      <input type="search" id="articleListFilter" placeholder="Search titles…" autocomplete="off" aria-label="Filter titles">
+      <button type="button" id="copyArticleListBtn" class="copy-list-btn">Copy visible</button>
+    </div>`;
+    html +=
+      '<ul class="article-title-list">' +
+      titles
+        .map(
+          t =>
+            `<li data-search="${escapeHtml(t.toLowerCase())}"><span class="article-title">${escapeHtml(t)}</span></li>`
+        )
+        .join('') +
+      '</ul>';
+  } else {
+    html += `<p class="article-list-empty" style="color:#888">${opts.emptyMessage}</p>`;
+  }
+  return html;
+}
+
+function updateArticleListFilter(totalCount) {
+  const input = document.getElementById('articleListFilter');
+  const countEl = document.getElementById('articleListCount');
+  const q = (input?.value || '').trim().toLowerCase();
+  const ul = document.querySelector('#viewedResults .article-title-list');
+  if (!ul || !countEl) return;
+  let visible = 0;
+  for (const li of ul.querySelectorAll('li')) {
+    const hay = li.getAttribute('data-search') || '';
+    const match = !q || hay.includes(q);
+    li.hidden = !match;
+    if (match) visible++;
+  }
+  countEl.textContent = q ? `${visible} / ${totalCount}` : String(totalCount);
+}
+
+async function copyVisibleArticleTitles() {
+  const ul = document.querySelector('#viewedResults .article-title-list');
+  if (!ul) return;
+  const lines = [...ul.querySelectorAll('li:not([hidden]) .article-title')].map(s => s.textContent || '');
+  const text = lines.join('\n');
+  const statusEl = document.getElementById('status');
+  const msg = lines.length ? `Copied ${lines.length} title(s).` : 'Nothing to copy.';
+  try {
+    await navigator.clipboard.writeText(text);
+    if (statusEl) {
+      statusEl.textContent = msg;
+      setTimeout(() => {
+        if (statusEl.textContent === msg) statusEl.textContent = '';
+      }, 2000);
+    }
+  } catch (_) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      if (statusEl) {
+        statusEl.textContent = msg;
+        setTimeout(() => {
+          if (statusEl.textContent === msg) statusEl.textContent = '';
+        }, 2000);
+      }
+    } catch (__) {}
+    ta.remove();
+  }
+}
+
+/** Call after innerHTML is set and panel includes .article-title-list. */
+function wireArticleListControls(totalCount) {
+  const input = document.getElementById('articleListFilter');
+  const copyBtn = document.getElementById('copyArticleListBtn');
+  if (input) {
+    input.value = '';
+    input.addEventListener('input', () => updateArticleListFilter(totalCount));
+  }
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => void copyVisibleArticleTitles());
+  }
+}
+
 function collapseResults() {
   const resultsEl = document.getElementById('viewedResults');
   const statusEl = document.getElementById('status');
@@ -169,16 +261,14 @@ async function showViewedArticles(options = {}) {
     viewedTitles.push(title);
   }
 
-  let html =
-    '<button type="button" id="clearViewedBtn" class="clear-btn">Clear Viewed Articles</button>';
-  html += `<h4>Viewed Articles (${viewedTitles.length})</h4>`;
-  if (viewedTitles.length) {
-    html += '<ul>' + viewedTitles.map(t => `<li>${escapeHtml(t)}</li>`).join('') + '</ul>';
-  } else {
-    html += '<p style="color:#888">None yet.</p>';
-  }
-
-  resultsEl.innerHTML = html;
+  const headingHtml = `<h4>Viewed Articles (<span id="articleListCount">${viewedTitles.length}</span>)</h4>`;
+  resultsEl.innerHTML = buildArticleListPanelHtml(viewedTitles, {
+    clearButtonId: 'clearViewedBtn',
+    clearButtonLabel: 'Clear Viewed Articles',
+    headingHtml,
+    emptyMessage: 'None yet.'
+  });
+  if (viewedTitles.length) wireArticleListControls(viewedTitles.length);
   displayedPanel = 'viewed';
 }
 
@@ -222,16 +312,14 @@ async function showNewlyViewedArticles(options = {}) {
     newlyTitles.push(title);
   }
 
-  let html =
-    '<button type="button" id="clearNewlyViewedBtn" class="clear-btn">Clear Newly Viewed Articles</button>';
-  html += `<h4>Newly Viewed (this tab) (${newlyTitles.length})</h4>`;
-  if (newlyTitles.length) {
-    html += '<ul>' + newlyTitles.map(t => `<li>${escapeHtml(t)}</li>`).join('') + '</ul>';
-  } else {
-    html += '<p style="color:#888">None in this tab yet.</p>';
-  }
-
-  resultsEl.innerHTML = html;
+  const headingHtml = `<h4>Newly Viewed (this tab) (<span id="articleListCount">${newlyTitles.length}</span>)</h4>`;
+  resultsEl.innerHTML = buildArticleListPanelHtml(newlyTitles, {
+    clearButtonId: 'clearNewlyViewedBtn',
+    clearButtonLabel: 'Clear Newly Viewed Articles',
+    headingHtml,
+    emptyMessage: 'None in this tab yet.'
+  });
+  if (newlyTitles.length) wireArticleListControls(newlyTitles.length);
   displayedPanel = 'newly';
 }
 

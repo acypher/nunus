@@ -10,7 +10,7 @@
  * canonical occurrence stays ungrayed; extra placements are grayed as duplicates.
  */
 
-/** WebExtension namespace: Firefox uses `browser`, Chromium uses `chrome`. */
+/** WebExtension namespace: prefer `browser` when present, else `chrome`. */
 const ext = globalThis.browser ?? globalThis.chrome;
 
 const VIEW_THRESHOLD_MS = 3000;

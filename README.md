@@ -3,9 +3,8 @@
 On the nytimes.com front page, this Nunus Chrome extension grays out article titles you've already seen.   
 Also, autoplay is removed from videos.   
 Option-downArrow jumps to the next unseen title.  
-'Already seen' means at least 20 pixels of the title were on the screen for 3 seconds in a previous session.  
 If the same title appears again later on the page, the later occurrences are immediately grayed out.
-
+'Already seen' means at least 20 pixels of the title were on the screen for 3 seconds in a previous session.  
 
 ## Installation
 
