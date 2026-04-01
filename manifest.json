@@ -6,6 +6,9 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "nunus@nunus.extension",
+      "data_collection_permissions": {
+        "required": ["none"]
+      },
       "strict_min_version": "128.0"
     }
   },
@@ -24,7 +27,8 @@
     "https://theguardian.com/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
   },
   "action": {
     "default_icon": {

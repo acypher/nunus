@@ -25,12 +25,20 @@ async function renderBlockTopicsList() {
   const ul = document.getElementById('blockTopicsList');
   if (!ul) return;
   const topics = await loadBlockTopicsForPopup();
-  ul.innerHTML = topics
-    .map(
-      (topic, i) =>
-        `<li><span>${escapeHtml(topic)}</span><button type="button" class="topic-remove" data-index="${i}" aria-label="Remove phrase">×</button></li>`
-    )
-    .join('');
+  ul.replaceChildren();
+  topics.forEach((topic, i) => {
+    const li = document.createElement('li');
+    const span = document.createElement('span');
+    span.textContent = topic;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'topic-remove';
+    btn.dataset.index = String(i);
+    btn.setAttribute('aria-label', 'Remove phrase');
+    btn.textContent = '×';
+    li.append(span, btn);
+    ul.appendChild(li);
+  });
 }
 
 async function loadDisableVideoAutoplayCheckbox() {
@@ -97,41 +105,76 @@ async function getActiveTabHostname() {
   return { hostname, tabId };
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-function noHostMessage() {
-  return '<p style="color:#888">Open a supported news site first.</p>';
+function mountNoHostMessage(container) {
+  container.replaceChildren();
+  const p = document.createElement('p');
+  p.style.color = '#888';
+  p.textContent = 'Open a supported news site first.';
+  container.appendChild(p);
 }
 
 /**
+ * @param {HTMLElement} container - #viewedResults
  * @param {string[]} titles
- * @param {{ clearButtonId: string, clearButtonLabel: string, headingHtml: string, emptyMessage: string }} opts
+ * @param {{ clearButtonId: string, clearButtonLabel: string, headingPrefix: string, emptyMessage: string }} opts
  */
-function buildArticleListPanelHtml(titles, opts) {
-  let html = `<button type="button" id="${opts.clearButtonId}" class="clear-btn">${opts.clearButtonLabel}</button>`;
-  html += opts.headingHtml;
+function mountArticleListPanel(container, titles, opts) {
+  container.replaceChildren();
+
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.id = opts.clearButtonId;
+  clearBtn.className = 'clear-btn';
+  clearBtn.textContent = opts.clearButtonLabel;
+  container.appendChild(clearBtn);
+
+  const h4 = document.createElement('h4');
+  h4.append(document.createTextNode(`${opts.headingPrefix} (`));
+  const countSpan = document.createElement('span');
+  countSpan.id = 'articleListCount';
+  countSpan.textContent = String(titles.length);
+  h4.append(countSpan, document.createTextNode(')'));
+  container.appendChild(h4);
+
   if (titles.length) {
-    html += `<div class="article-panel-toolbar">
-      <input type="search" id="articleListFilter" placeholder="Search titles…" autocomplete="off" aria-label="Filter titles">
-      <button type="button" id="copyArticleListBtn" class="copy-list-btn">Copy visible</button>
-    </div>`;
-    html +=
-      '<ul class="article-title-list">' +
-      titles
-        .map(
-          t =>
-            `<li data-search="${escapeHtml(t.toLowerCase())}"><span class="article-title">${escapeHtml(t)}</span></li>`
-        )
-        .join('') +
-      '</ul>';
+    const toolbar = document.createElement('div');
+    toolbar.className = 'article-panel-toolbar';
+
+    const filterInput = document.createElement('input');
+    filterInput.type = 'search';
+    filterInput.id = 'articleListFilter';
+    filterInput.placeholder = 'Search titles…';
+    filterInput.autocomplete = 'off';
+    filterInput.setAttribute('aria-label', 'Filter titles');
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.id = 'copyArticleListBtn';
+    copyBtn.className = 'copy-list-btn';
+    copyBtn.textContent = 'Copy visible';
+
+    toolbar.append(filterInput, copyBtn);
+    container.appendChild(toolbar);
+
+    const ul = document.createElement('ul');
+    ul.className = 'article-title-list';
+    for (const t of titles) {
+      const li = document.createElement('li');
+      li.setAttribute('data-search', t.toLowerCase());
+      const span = document.createElement('span');
+      span.className = 'article-title';
+      span.textContent = t;
+      li.appendChild(span);
+      ul.appendChild(li);
+    }
+    container.appendChild(ul);
   } else {
-    html += `<p class="article-list-empty" style="color:#888">${opts.emptyMessage}</p>`;
+    const p = document.createElement('p');
+    p.className = 'article-list-empty';
+    p.style.color = '#888';
+    p.textContent = opts.emptyMessage;
+    container.appendChild(p);
   }
-  return html;
 }
 
 function updateArticleListFilter(totalCount) {
@@ -186,7 +229,7 @@ async function copyVisibleArticleTitles() {
   }
 }
 
-/** Call after innerHTML is set and panel includes .article-title-list. */
+/** Call after mountArticleListPanel when the list has items. */
 function wireArticleListControls(totalCount) {
   const input = document.getElementById('articleListFilter');
   const copyBtn = document.getElementById('copyArticleListBtn');
@@ -202,7 +245,7 @@ function wireArticleListControls(totalCount) {
 function collapseResults() {
   const resultsEl = document.getElementById('viewedResults');
   const statusEl = document.getElementById('status');
-  resultsEl.innerHTML = '';
+  resultsEl.replaceChildren();
   resultsEl.classList.remove('expanded');
   statusEl.textContent = '';
   displayedPanel = null;
@@ -227,7 +270,7 @@ async function showViewedArticles(options = {}) {
 
   const { hostname, tabId } = await getActiveTabHostname();
   if (!hostname) {
-    resultsEl.innerHTML = noHostMessage();
+    mountNoHostMessage(resultsEl);
     resultsEl.classList.add('expanded');
     displayedPanel = 'viewed';
     return;
@@ -261,11 +304,10 @@ async function showViewedArticles(options = {}) {
     viewedTitles.push(title);
   }
 
-  const headingHtml = `<h4>Viewed Articles (<span id="articleListCount">${viewedTitles.length}</span>)</h4>`;
-  resultsEl.innerHTML = buildArticleListPanelHtml(viewedTitles, {
+  mountArticleListPanel(resultsEl, viewedTitles, {
     clearButtonId: 'clearViewedBtn',
     clearButtonLabel: 'Clear Viewed Articles',
-    headingHtml,
+    headingPrefix: 'Viewed Articles',
     emptyMessage: 'None yet.'
   });
   if (viewedTitles.length) wireArticleListControls(viewedTitles.length);
@@ -291,7 +333,7 @@ async function showNewlyViewedArticles(options = {}) {
 
   const { hostname, tabId } = await getActiveTabHostname();
   if (!hostname) {
-    resultsEl.innerHTML = noHostMessage();
+    mountNoHostMessage(resultsEl);
     resultsEl.classList.add('expanded');
     displayedPanel = 'newly';
     return;
@@ -312,11 +354,10 @@ async function showNewlyViewedArticles(options = {}) {
     newlyTitles.push(title);
   }
 
-  const headingHtml = `<h4>Newly Viewed (this tab) (<span id="articleListCount">${newlyTitles.length}</span>)</h4>`;
-  resultsEl.innerHTML = buildArticleListPanelHtml(newlyTitles, {
+  mountArticleListPanel(resultsEl, newlyTitles, {
     clearButtonId: 'clearNewlyViewedBtn',
     clearButtonLabel: 'Clear Newly Viewed Articles',
-    headingHtml,
+    headingPrefix: 'Newly Viewed (this tab)',
     emptyMessage: 'None in this tab yet.'
   });
   if (newlyTitles.length) wireArticleListControls(newlyTitles.length);
