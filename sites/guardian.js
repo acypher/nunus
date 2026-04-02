@@ -99,6 +99,22 @@
     return [root];
   }
 
+  /** Standfirst / trail text when present on front cards. */
+  function getBlockTopicHaystack(root) {
+    if (!root) return '';
+    const el =
+      root.querySelector('.fc-item__standfirst') ||
+      root.querySelector('[class*="standfirst"]');
+    if (!el) return '';
+    const t = normalizeTitle(el.textContent);
+    return t || '';
+  }
+
   window.NunusSites = window.NunusSites || {};
-  window.NunusSites.guardian = { findArticles, isHomepage, getVisibilityTargets };
+  window.NunusSites.guardian = {
+    findArticles,
+    isHomepage,
+    getVisibilityTargets,
+    getBlockTopicHaystack
+  };
 })();

@@ -31,7 +31,7 @@ const VIEWED_STYLE = {
   transition: 'opacity 0.3s ease, filter 0.3s ease'
 };
 
-/** Stronger dim for headlines matching a user "Enough, already" topic (popup list). */
+/** Stronger dim for stories matching a user "Enough, already" topic (headline + lede; popup list). */
 const TOPIC_BLOCKED_STYLE = {
   opacity: '0.2',
   filter: 'grayscale(1) brightness(0.72)',
@@ -154,13 +154,45 @@ async function loadBlockTopics() {
   return normalizeBlockTopics(r[STORAGE_BLOCK_TOPICS_KEY]);
 }
 
-function titleMatchesBlockTopic(titleId, blockTopics) {
+/** Strip surrounding punctuation so "Wordle," still matches. */
+function normalizeBlockTopicToken(w) {
+  return w.replace(/^[\s"'“”‘’.,!?:;()[\]{}]+|[\s"'“”‘’.,!?:;()[\]{}]+$/g, '').trim();
+}
+
+/**
+ * Each whitespace-separated word in the topic must appear somewhere in the haystack
+ * (title + lede); words need not be adjacent. Case-insensitive.
+ */
+function topicMatchesHaystack(haystackLower, topic) {
+  const raw = String(topic).trim().toLowerCase();
+  if (!raw) return false;
+  const tokens = raw.split(/\s+/).map(normalizeBlockTopicToken).filter(Boolean);
+  if (tokens.length === 0) return false;
+  return tokens.every(t => haystackLower.includes(t));
+}
+
+function getBlockTopicHaystack(site, articleRoot, titleId) {
+  const title = String(titleId || '').trim();
+  let extra = '';
+  if (articleRoot && typeof site.getBlockTopicHaystack === 'function') {
+    const s = site.getBlockTopicHaystack(articleRoot);
+    if (s && typeof s === 'string') extra = s.trim().replace(/\s+/g, ' ');
+  }
+  if (!title) return extra;
+  if (!extra) return title;
+  return `${title} ${extra}`;
+}
+
+function pickArticleRootForTopics(elements) {
+  const arr = [...elements];
+  return arr.find(el => el.isConnected) || arr[0] || null;
+}
+
+function articleMatchesBlockTopics(site, articleRoot, articleId, blockTopics) {
   if (!blockTopics.length) return false;
-  const t = (titleId || '').toLowerCase();
-  return blockTopics.some(topic => {
-    const s = String(topic).trim().toLowerCase();
-    return s.length > 0 && t.includes(s);
-  });
+  const haystack = getBlockTopicHaystack(site, articleRoot, articleId).toLowerCase();
+  if (!haystack) return false;
+  return blockTopics.some(topic => topicMatchesHaystack(haystack, topic));
 }
 
 function applyTopicBlockedStyle(element) {
@@ -179,6 +211,7 @@ function removeTopicBlockedStyle(element) {
 }
 
 function syncGrayForElements(
+  site,
   elements,
   id,
   viewedArticles,
@@ -203,8 +236,9 @@ function syncGrayForElements(
 
   const topics = blockTopics || [];
 
+  const topicRoot = pickArticleRootForTopics(elements);
   for (const element of elements) {
-    if (titleMatchesBlockTopic(id, topics)) {
+    if (articleMatchesBlockTopics(site, topicRoot, id, topics)) {
       removeViewedStyle(element);
       applyTopicBlockedStyle(element);
       continue;
@@ -309,11 +343,13 @@ async function run(site) {
   /** performance.now() when the headline first met the visibility rule this dwell episode */
   const dwellStartById = new Map();
   const trackedIds = new Set(
-    [...articles.keys()].filter(
-      id =>
-        !isArticleViewed(viewedArticles, hostname, id) &&
-        !titleMatchesBlockTopic(id, blockTopics)
-    )
+    [...articles.entries()]
+      .filter(([id, elSet]) => {
+        if (isArticleViewed(viewedArticles, hostname, id)) return false;
+        const root = pickArticleRootForTopics([...elSet]);
+        return !articleMatchesBlockTopics(site, root, id, blockTopics);
+      })
+      .map(([id]) => id)
   );
 
   document.addEventListener('visibilitychange', () => {
@@ -332,9 +368,11 @@ async function run(site) {
       } else {
         for (const element of elements) articles.get(id).add(element);
       }
-      if (titleMatchesBlockTopic(id, blockTopics)) trackedIds.delete(id);
+      const root = pickArticleRootForTopics([...elements]);
+      if (articleMatchesBlockTopics(site, root, id, blockTopics)) trackedIds.delete(id);
       else if (!isArticleViewed(viewedArticles, hostname, id)) trackedIds.add(id);
       syncGrayForElements(
+        site,
         [...elements],
         id,
         viewedArticles,
@@ -348,6 +386,7 @@ async function run(site) {
   // Sync gray from persistent storage vs this tab's session; strip when session has the key.
   for (const [id, elements] of articles) {
     syncGrayForElements(
+      site,
       [...elements],
       id,
       viewedArticles,
@@ -370,7 +409,8 @@ async function run(site) {
     const now = performance.now();
     for (const [id, elements] of articles) {
       if (!trackedIds.has(id)) continue;
-      if (titleMatchesBlockTopic(id, blockTopics)) continue;
+      const topicRoot = pickArticleRootForTopics([...elements]);
+      if (articleMatchesBlockTopics(site, topicRoot, id, blockTopics)) continue;
 
       const visibleRoots = [...elements].filter(
         el =>

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "1.2.3",
-  "description": "On the nytimes.com front page, Nunus grays out article titles you've already seen. Also, autoplay is removed from videos.",
+  "version": "1.2.4",
+  "description": "Nunus helps you find what's new on the New York Times front page without having to scan every headline again.",
   "browser_specific_settings": {
     "gecko": {
       "id": "nunus@nunus.extension",
@@ -18,13 +18,36 @@
   },
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [
-    "https://www.nytimes.com/*",
-    "https://nytimes.com/*",
-    "https://*.nytimes.com/*",
-    "https://washingtonpost.com/*",
-    "https://www.washingtonpost.com/*",
-    "https://www.theguardian.com/*",
-    "https://theguardian.com/*"
+    "https://www.nytimes.com/",
+    "https://www.nytimes.com/?*",
+    "https://nytimes.com/",
+    "https://nytimes.com/?*",
+    "https://*.nytimes.com/",
+    "https://*.nytimes.com/?*",
+    "https://www.washingtonpost.com/",
+    "https://www.washingtonpost.com/?*",
+    "https://washingtonpost.com/",
+    "https://washingtonpost.com/?*",
+    "https://www.theguardian.com/",
+    "https://www.theguardian.com/?*",
+    "https://www.theguardian.com/us",
+    "https://www.theguardian.com/us?*",
+    "https://www.theguardian.com/us/",
+    "https://www.theguardian.com/us/?*",
+    "https://www.theguardian.com/uk",
+    "https://www.theguardian.com/uk?*",
+    "https://www.theguardian.com/uk/",
+    "https://www.theguardian.com/uk/?*",
+    "https://theguardian.com/",
+    "https://theguardian.com/?*",
+    "https://theguardian.com/us",
+    "https://theguardian.com/us?*",
+    "https://theguardian.com/us/",
+    "https://theguardian.com/us/?*",
+    "https://theguardian.com/uk",
+    "https://theguardian.com/uk?*",
+    "https://theguardian.com/uk/",
+    "https://theguardian.com/uk/?*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -41,18 +64,24 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.nytimes.com/*",
-        "https://nytimes.com/*",
-        "https://*.nytimes.com/*"
+        "https://www.nytimes.com/",
+        "https://www.nytimes.com/?*",
+        "https://nytimes.com/",
+        "https://nytimes.com/?*",
+        "https://*.nytimes.com/",
+        "https://*.nytimes.com/?*"
       ],
       "js": ["ext-chrome-shim.js", "sites/nyt-autoplay-pref.js"],
       "run_at": "document_start"
     },
     {
       "matches": [
-        "https://www.nytimes.com/*",
-        "https://nytimes.com/*",
-        "https://*.nytimes.com/*"
+        "https://www.nytimes.com/",
+        "https://www.nytimes.com/?*",
+        "https://nytimes.com/",
+        "https://nytimes.com/?*",
+        "https://*.nytimes.com/",
+        "https://*.nytimes.com/?*"
       ],
       "js": ["ext-chrome-shim.js", "sites/nyt-betamax-main.js"],
       "run_at": "document_start",
@@ -60,20 +89,48 @@
     },
     {
       "matches": [
-        "https://www.nytimes.com/*",
-        "https://nytimes.com/*",
-        "https://*.nytimes.com/*"
+        "https://www.nytimes.com/",
+        "https://www.nytimes.com/?*",
+        "https://nytimes.com/",
+        "https://nytimes.com/?*",
+        "https://*.nytimes.com/",
+        "https://*.nytimes.com/?*"
       ],
       "js": ["ext-chrome-shim.js", "sites/nyt-videos.js"],
       "run_at": "document_start"
     },
     {
       "matches": [
-        "https://www.nytimes.com/*",
-        "https://nytimes.com/*",
-        "https://*.nytimes.com/*",
+        "https://www.nytimes.com/",
+        "https://www.nytimes.com/?*",
+        "https://nytimes.com/",
+        "https://nytimes.com/?*",
+        "https://*.nytimes.com/",
+        "https://*.nytimes.com/?*",
+        "https://www.washingtonpost.com/",
+        "https://www.washingtonpost.com/?*",
         "https://washingtonpost.com/",
-        "https://www.theguardian.com/us"
+        "https://washingtonpost.com/?*",
+        "https://www.theguardian.com/",
+        "https://www.theguardian.com/?*",
+        "https://www.theguardian.com/us",
+        "https://www.theguardian.com/us?*",
+        "https://www.theguardian.com/us/",
+        "https://www.theguardian.com/us/?*",
+        "https://www.theguardian.com/uk",
+        "https://www.theguardian.com/uk?*",
+        "https://www.theguardian.com/uk/",
+        "https://www.theguardian.com/uk/?*",
+        "https://theguardian.com/",
+        "https://theguardian.com/?*",
+        "https://theguardian.com/us",
+        "https://theguardian.com/us?*",
+        "https://theguardian.com/us/",
+        "https://theguardian.com/us/?*",
+        "https://theguardian.com/uk",
+        "https://theguardian.com/uk?*",
+        "https://theguardian.com/uk/",
+        "https://theguardian.com/uk/?*"
       ],
       "js": [
         "ext-chrome-shim.js",

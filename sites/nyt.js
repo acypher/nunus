@@ -61,6 +61,8 @@
     // Wirecutter / Athletic promos use nyt://promo/ and paths without /YYYY/MM/DD/.
     if (u.pathname.startsWith('/wirecutter/')) return true;
     if (u.pathname.startsWith('/athletic/')) return true;
+    // Homepage “Cooking” promos link to cooking.nytimes.com/recipes/… (no /YYYY/MM/DD/).
+    if (u.hostname === 'cooking.nytimes.com' && u.pathname.startsWith('/recipes/')) return true;
     return false;
   }
 
@@ -71,7 +73,8 @@
       uri &&
       (uri.startsWith('nyt://article/') ||
         uri.startsWith('nyt://interactive/') ||
-        uri.startsWith('nyt://promo/'))
+        uri.startsWith('nyt://promo/') ||
+        uri.startsWith('nyt://recipe/'))
     ) {
       return true;
     }
@@ -310,6 +313,21 @@
     return filterOutermost([...candidates]);
   }
 
+  /**
+   * Summary / lede under the headline in Vi cards (`data-tpl="slic"`), excluding the
+   * headline slot so we do not duplicate the title text for matching.
+   */
+  function getBlockTopicHaystack(root) {
+    if (!root) return '';
+    const slic = root.querySelector('[data-tpl="slic"]');
+    if (!slic) return '';
+    const clone = slic.cloneNode(true);
+    const hSlot = clone.querySelector('[data-tpl="h"]');
+    if (hSlot) hSlot.remove();
+    const t = normalizeTitle(clone.textContent);
+    return t || '';
+  }
+
   function findArticles() {
     const articles = new Map();
     const add = (id, el) => {
@@ -333,5 +351,10 @@
   }
 
   window.NunusSites = window.NunusSites || {};
-  window.NunusSites.nyt = { findArticles, isHomepage, getVisibilityTargets };
+  window.NunusSites.nyt = {
+    findArticles,
+    isHomepage,
+    getVisibilityTargets,
+    getBlockTopicHaystack
+  };
 })();

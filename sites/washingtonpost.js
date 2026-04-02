@@ -70,10 +70,30 @@
     return [root];
   }
 
+  /** Deck / subhead when the layout exposes it on cards. */
+  function getBlockTopicHaystack(root) {
+    if (!root) return '';
+    const sels = [
+      '[data-testid="article-lede"]',
+      '.font--subhead',
+      'p.font--subhead',
+      '.pb-md',
+      '[data-pb-type="description"]'
+    ];
+    for (const sel of sels) {
+      const el = root.querySelector(sel);
+      if (!el) continue;
+      const t = normalizeTitle(el.textContent);
+      if (t) return t;
+    }
+    return '';
+  }
+
   window.NunusSites = window.NunusSites || {};
   window.NunusSites.washingtonpost = {
     findArticles,
     isHomepage,
-    getVisibilityTargets
+    getVisibilityTargets,
+    getBlockTopicHaystack
   };
 })();
