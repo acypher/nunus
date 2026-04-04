@@ -2,7 +2,7 @@
  * NYTimes (isolated world): VHS + generic HTML5 video + iframe embed autoplay tweaks.
  * Betamax / cinemagraph / .vhs-grid-page / Gallery / story-wrapper[data-tpl=lb]: MAIN betamax (play()).
  *
- * Skipped when nunusDisableVideoAutoplay is false (popup). document_start; MutationObserver singleton.
+ * Runs only when nunusDisableVideoAutoplay is true (user opted in via popup). document_start; MutationObserver singleton.
  */
 (function() {
   const ext = globalThis.browser ?? globalThis.chrome;
@@ -15,8 +15,8 @@
 
   const DISABLE_VIDEO_AUTOPLAY_KEY = 'nunusDisableVideoAutoplay';
 
-  ext.storage.local.get({ [DISABLE_VIDEO_AUTOPLAY_KEY]: true }, r => {
-    if (r[DISABLE_VIDEO_AUTOPLAY_KEY] === false) return;
+  ext.storage.local.get({ [DISABLE_VIDEO_AUTOPLAY_KEY]: false }, r => {
+    if (r[DISABLE_VIDEO_AUTOPLAY_KEY] !== true) return;
 
   const ATTR_WATCH = [
     'autoplay',

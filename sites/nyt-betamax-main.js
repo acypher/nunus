@@ -17,8 +17,8 @@
  * - Gallery image carousels (same section, ol.carousel-ol): periodic setInterval ticks that
  *   advance slides are no-op'd while that DOM is present (typical 3–12s delays).
  *
- * Skipped when sessionStorage nunusBlockVideoAutoplay === '0' (popup toggle); value set
- * by sites/nyt-autoplay-pref.js from chrome.storage (no inline script — CSP-safe).
+ * Runs only when sessionStorage nunusBlockVideoAutoplay === '1' (user opted in via popup).
+ * Value is set by sites/nyt-autoplay-pref.js from extension storage (CSP-safe).
  */
 (function() {
   const h = window.location.hostname;
@@ -36,7 +36,8 @@
       if (v === '0') return false;
       if (v === '1') return true;
     } catch (_) {}
-    return undefined;
+    // Default off: user must opt in via popup (avoids blocking before nyt-autoplay-pref runs).
+    return false;
   }
 
   function nunusBetamaxMainRun() {

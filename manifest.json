@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "1.3.0",
-  "description": "Nunus helps you find what's new on the New York Times front page without having to scan every headline again.",
+  "version": "1.3.1",
+  "description": "Nunus helps you find what's new on the New York Times front page since you last checked.",
   "browser_specific_settings": {
     "gecko": {
       "id": "nunus@nunus.extension",

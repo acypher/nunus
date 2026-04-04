@@ -42,9 +42,9 @@ async function renderBlockTopicsList() {
 }
 
 async function loadDisableVideoAutoplayCheckbox() {
-  const r = await ext.storage.local.get({ [DISABLE_VIDEO_AUTOPLAY_KEY]: true });
+  const r = await ext.storage.local.get({ [DISABLE_VIDEO_AUTOPLAY_KEY]: false });
   const cb = document.getElementById('disableVideoAutoplay');
-  if (cb) cb.checked = r[DISABLE_VIDEO_AUTOPLAY_KEY] !== false;
+  if (cb) cb.checked = r[DISABLE_VIDEO_AUTOPLAY_KEY] === true;
 }
 
 /** Which list is currently shown in #viewedResults ('viewed' | 'newly' | null). */

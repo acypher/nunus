@@ -23,10 +23,15 @@
   }
 
   try {
-    ext.storage.local.get({ [KEY]: true }, r => {
-      mirrorPrefToSession(r[KEY] !== false);
+    ext.storage.local.get({ [KEY]: false }, r => {
+      mirrorPrefToSession(r[KEY] === true);
+    });
+    ext.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local' || !changes[KEY]) return;
+      const nv = changes[KEY].newValue;
+      mirrorPrefToSession(nv === true);
     });
   } catch (_) {
-    mirrorPrefToSession(true);
+    mirrorPrefToSession(false);
   }
 })();
