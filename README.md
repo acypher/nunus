@@ -32,6 +32,8 @@ Install **Nunus** from the official extension listings (normal â€œadd extensionâ
 
 **Firefox 128+** is required (`strict_min_version` in `manifest.json`).
 
+**Safari (your own Xcode build):** After you create the Safari Web Extension target, hook in [`safari/scripts/copy-web-extension-resources.sh`](safari/scripts/copy-web-extension-resources.sh) as described in [`safari/README.md`](safari/README.md) so the `.appex` loads the same files as the repo root.
+
 ## Versioning
 
 Uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
