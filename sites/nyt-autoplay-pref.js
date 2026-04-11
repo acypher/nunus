@@ -2,7 +2,8 @@
  * Runs first on NYT (isolated world): reads extension storage and mirrors the video-autoplay
  * block preference into sessionStorage so MAIN-world nyt-betamax-main.js can read it
  * without injecting inline script (CSP on strict pages forbids that).
- * Keys: nunusDisableVideoAutoplay; sessionStorage nunusBlockVideoAutoplay (1|0).
+ * Keys: nunusStopVideoAutoplay (preferred); legacy nunusDisableVideoAutoplay;
+ * sessionStorage nunusBlockVideoAutoplay (1|0).
  */
 (function() {
   const ext = globalThis.browser ?? globalThis.chrome;
@@ -13,8 +14,15 @@
     (typeof h === 'string' && h.endsWith('.nytimes.com'));
   if (!onNyt) return;
 
-  const KEY = 'nunusDisableVideoAutoplay';
+  const STOP_KEY = 'nunusStopVideoAutoplay';
+  const LEGACY_KEY = 'nunusDisableVideoAutoplay';
   const SESSION_KEY = 'nunusBlockVideoAutoplay';
+
+  function readStopPref(obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, STOP_KEY)) return obj[STOP_KEY] === true;
+    if (Object.prototype.hasOwnProperty.call(obj, LEGACY_KEY)) return obj[LEGACY_KEY] === true;
+    return false;
+  }
 
   function mirrorPrefToSession(shouldBlock) {
     try {
@@ -23,13 +31,18 @@
   }
 
   try {
-    ext.storage.local.get({ [KEY]: false }, r => {
-      mirrorPrefToSession(r[KEY] === true);
+    ext.storage.local.get([STOP_KEY, LEGACY_KEY], r => {
+      mirrorPrefToSession(readStopPref(r));
     });
     ext.storage.onChanged.addListener((changes, area) => {
-      if (area !== 'local' || !changes[KEY]) return;
-      const nv = changes[KEY].newValue;
-      mirrorPrefToSession(nv === true);
+      if (area !== 'local') return;
+      if (changes[STOP_KEY]) {
+        mirrorPrefToSession(changes[STOP_KEY].newValue === true);
+        return;
+      }
+      if (changes[LEGACY_KEY]) {
+        mirrorPrefToSession(changes[LEGACY_KEY].newValue === true);
+      }
     });
   } catch (_) {
     mirrorPrefToSession(false);

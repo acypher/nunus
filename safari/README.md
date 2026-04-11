@@ -31,7 +31,7 @@ Adjust `NUNUS_WEBROOT` to your real **NunusCursor** path (the folder that contai
 
 8. Remove template files from **Copy Bundle Resources** on **Nunus Extension** (`Main.html`, `Script.js`, duplicate `manifest.json`, etc.) so you do not ship two different versions.
 
-9. **Optional — silence “Run Script … does not specify any outputs”:** Open the Run Script phase and **uncheck** **Based on dependency analysis** (Xcode 14+). That tells Xcode you intentionally run the copy step on every build, which is reasonable when syncing from git. Alternatively, add **Output Files** such as `$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/manifest.json` if you want dependency-based skipping (only helps if inputs/outputs are wired correctly).
+9. **Optional — silence "Run Script … does not specify any outputs":** Open the Run Script phase and **uncheck** **Based on dependency analysis** (Xcode 14+). That tells Xcode you intentionally run the copy step on every build, which is reasonable when syncing from git. Alternatively, add **Output Files** such as `$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/manifest.json` if you want dependency-based skipping (only helps if inputs/outputs are wired correctly).
 
 ## 2. Build and check
 
@@ -50,3 +50,8 @@ That is **User Script Sandboxing** in Xcode, not a problem with the shell script
 ### `unsealed contents present in the bundle root` (CodeSign)
 
 The copy script put **`manifest.json` (or other files) in the root of the `.appex`**. On macOS, web assets must live under **`Contents/Resources/`**. Use the current [`scripts/copy-web-extension-resources.sh`](scripts/copy-web-extension-resources.sh) from this repo (it always targets that folder), then **Clean Build Folder** and build again. Remove any stray files from the `.appex` root in Finder if an old build left them there.
+
+### Mac App Store validation (`manifest.json` description / app icon)
+
+- **Safari Web Extension `description`:** Apple requires the root `manifest.json` **description** to be **112 characters or fewer** (stricter than the Chrome Web Store). Keep the store-style blurb short; put release notes in App Store Connect instead.
+- **Host app icon:** Mac App Store validation requires an icon in ICNS format with a 512pt @2x (1024x1024) image. The host target needs: (1) `Assets.xcassets/AppIcon.appiconset` populated with PNGs (16 through 1024px) — run `sh safari/scripts/generate-mac-app-icons.sh` to generate them from `icons/letterNu1024.png`; (2) `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` in the host target's Build Settings (`INFOPLIST_KEY_CFBundleIconFile` does **not** work — Xcode's generated-plist system ignores that legacy key); (3) `COMBINE_HIDPI_IMAGES = YES` (default for Mac targets). Optionally keep `AppIcon.icns` in Copy Bundle Resources as a fallback.

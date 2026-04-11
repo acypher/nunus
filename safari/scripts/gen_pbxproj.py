@@ -71,7 +71,11 @@ def idx(n):
     REL_HIOS,
     DBG_EIOS,
     REL_EIOS,
-) = [idx(i) for i in range(1, 62)]
+    FR_ASSETS,
+    FR_APPICNS,
+    BF_APPICNS_MAC,
+    RS_MAC,
+) = [idx(i) for i in range(1, 66)]
 
 out_path = os.path.join(os.path.dirname(__file__), "..", "NunusSafari.xcodeproj", "project.pbxproj")
 
@@ -87,6 +91,7 @@ s = f"""// !$*UTF8*$!
 \t\t{BF_APP_MAC} /* NunusHostApp.swift in Sources */ = {{isa = PBXBuildFile; fileRef = {FR_SWIFT_APP} /* NunusHostApp.swift */; }};
 \t\t{BF_HANDLER_MAC} /* SafariWebExtensionHandler.swift in Sources */ = {{isa = PBXBuildFile; fileRef = {FR_HANDLER} /* SafariWebExtensionHandler.swift */; }};
 \t\t{BF_EMBED_MAC} /* NunusExtension.appex in Embed Foundation Extensions */ = {{isa = PBXBuildFile; fileRef = {PR_EXT_APPEX} /* NunusExtension.appex */; settings = {{ATTRIBUTES = (RemoveHeadersOnCopy, ); }}; }};
+\t\t{BF_APPICNS_MAC} /* AppIcon.icns in Resources */ = {{isa = PBXBuildFile; fileRef = {FR_APPICNS} /* AppIcon.icns */; }};
 \t\t{BF_APP_IOS} /* NunusHostApp.swift in Sources */ = {{isa = PBXBuildFile; fileRef = {FR_SWIFT_APP} /* NunusHostApp.swift */; }};
 \t\t{BF_HANDLER_IOS} /* SafariWebExtensionHandler.swift in Sources */ = {{isa = PBXBuildFile; fileRef = {FR_HANDLER} /* SafariWebExtensionHandler.swift */; }};
 \t\t{BF_EMBED_IOS} /* NunusExtensioniOS.appex in Embed Foundation Extensions */ = {{isa = PBXBuildFile; fileRef = {PR_EXT_IOS} /* NunusExtensioniOS.appex */; settings = {{ATTRIBUTES = (RemoveHeadersOnCopy, ); }}; }};
@@ -139,6 +144,8 @@ s = f"""// !$*UTF8*$!
 \t\t{FR_HANDLER} /* SafariWebExtensionHandler.swift */ = {{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariWebExtensionHandler.swift; sourceTree = "<group>"; }};
 \t\t{FR_INFO} /* Info.plist */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; }};
 \t\t{FR_HOST_ENT} /* NunusHost.entitlements */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NunusHost.entitlements; sourceTree = "<group>"; }};
+\t\t{FR_ASSETS} /* Assets.xcassets */ = {{isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; }};
+\t\t{FR_APPICNS} /* AppIcon.icns */ = {{isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; }};
 \t\t{FR_EXT_ENT} /* NunusExtension.entitlements */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NunusExtension.entitlements; sourceTree = "<group>"; }};
 \t\t{FR_SCRIPT} /* copy-web-extension-resources.sh */ = {{isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "copy-web-extension-resources.sh"; sourceTree = "<group>"; }};
 \t\t{FR_IOS_HOST_ENT} /* NunusHostIOS.entitlements */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NunusHostIOS.entitlements; sourceTree = "<group>"; }};
@@ -180,6 +187,8 @@ s = f"""// !$*UTF8*$!
 \t\t{G_HOST} /* Host */ = {{
 \t\t\tisa = PBXGroup;
 \t\t\tchildren = (
+\t\t\t\t{FR_ASSETS} /* Assets.xcassets */,
+\t\t\t\t{FR_APPICNS} /* AppIcon.icns */,
 \t\t\t\t{FR_HOST_ENT} /* NunusHost.entitlements */,
 \t\t\t);
 \t\t\tpath = Host;
@@ -232,6 +241,7 @@ s = f"""// !$*UTF8*$!
 \t\t\tbuildPhases = (
 \t\t\t\t{SRC_HOST_MAC} /* Sources */,
 \t\t\t\t{FW_MAC_H} /* Frameworks */,
+\t\t\t\t{RS_MAC} /* Resources */,
 \t\t\t\t{CP_MAC} /* Embed Foundation Extensions */,
 \t\t\t);
 \t\t\tbuildRules = (
@@ -332,6 +342,17 @@ s = f"""// !$*UTF8*$!
 \t\t\t);
 \t\t}};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+\t\t{RS_MAC} /* Resources */ = {{
+\t\t\tisa = PBXResourcesBuildPhase;
+\t\t\tbuildActionMask = 2147483647;
+\t\t\tfiles = (
+\t\t\t\t{BF_APPICNS_MAC} /* AppIcon.icns in Resources */,
+\t\t\t);
+\t\t\trunOnlyForDeploymentPostprocessing = 0;
+\t\t}};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
 \t\t{SH_MAC} /* Copy web extension resources */ = {{
@@ -446,6 +467,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
+\t\t\t\tINFOPLIST_KEY_CFBundleIconFile = AppIcon;
 \t\t\t\tINFOPLIST_KEY_NSHumanReadableCopyright = "";
 \t\t\t\tLD_RUNPATH_SEARCH_PATHS = (
 \t\t\t\t\t"$(inherited)",
@@ -470,6 +492,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
+\t\t\t\tINFOPLIST_KEY_CFBundleIconFile = AppIcon;
 \t\t\t\tINFOPLIST_KEY_NSHumanReadableCopyright = "";
 \t\t\t\tLD_RUNPATH_SEARCH_PATHS = (
 \t\t\t\t\t"$(inherited)",

@@ -30,19 +30,24 @@
 
   const VIDEO_BLOCK_SESSION_KEY = 'nunusBlockVideoAutoplay';
 
+  /**
+   * Mirrors sites/nyt-autoplay-pref.js: session key is set asynchronously after
+   * storage.local.get. While unset, return null so we wait — treating unset as
+   * false made the first navigation skip hooks and the next load (key already '1')
+   * install them immediately, which broke NYT hydration / article loading.
+   */
   function nunusVideoAutoplayBlockEnabled() {
     try {
       const v = sessionStorage.getItem(VIDEO_BLOCK_SESSION_KEY);
       if (v === '0') return false;
       if (v === '1') return true;
     } catch (_) {}
-    // Default off: user must opt in via popup (avoids blocking before nyt-autoplay-pref runs).
-    return false;
+    return null;
   }
 
   function nunusBetamaxMainRun() {
     if (window.__nunusBetamaxMainInit) return;
-    if (nunusVideoAutoplayBlockEnabled() === false) return;
+    if (nunusVideoAutoplayBlockEnabled() !== true) return;
     window.__nunusBetamaxMainInit = true;
 
   function injectNunusVhsGridStyles() {
@@ -248,6 +253,15 @@
       },
       true
     );
+    try {
+      const attrMo = new MutationObserver(() => {
+        if (video.hasAttribute('autoplay') && video.dataset.nunusBetamaxPlayAllowed !== '1') {
+          stripBetamaxAutoplay(video);
+          video.pause();
+        }
+      });
+      attrMo.observe(video, { attributes: true, attributeFilter: ['autoplay'] });
+    } catch (_) {}
   }
 
   function wireCinemagraphVideoPause(video) {
@@ -403,10 +417,18 @@
     }
   }
 
+  function stripBetamaxAutoplay(vid) {
+    try {
+      vid.removeAttribute('autoplay');
+      vid.autoplay = false;
+    } catch (_) {}
+  }
+
   function scanHost(host) {
     wireBetamaxHostUnhideObserver(host);
     const vid = host.shadowRoot?.querySelector('video[data-testid="betamax-video"]');
     if (vid) {
+      stripBetamaxAutoplay(vid);
       try {
         vid.pause();
       } catch (_) {}
@@ -631,29 +653,29 @@
   }
   }
 
+  const SESSION_PREF_WAIT_MS = 5000;
+
   function nunusBetamaxMainSchedule() {
     if (window.__nunusBetamaxMainInit) return;
-    const first = nunusVideoAutoplayBlockEnabled();
-    if (first === false) return;
-    if (first === true) {
+    const p = nunusVideoAutoplayBlockEnabled();
+    if (p === false) return;
+    if (p === true) {
       nunusBetamaxMainRun();
       return;
     }
     const t0 = performance.now();
-    (function wait() {
+    function wait() {
       if (window.__nunusBetamaxMainInit) return;
-      const p = nunusVideoAutoplayBlockEnabled();
-      if (p === false) return;
-      if (p === true) {
+      const q = nunusVideoAutoplayBlockEnabled();
+      if (q === false) return;
+      if (q === true) {
         nunusBetamaxMainRun();
         return;
       }
-      if (performance.now() - t0 < 400) {
-        requestAnimationFrame(wait);
-      } else {
-        nunusBetamaxMainRun();
-      }
-    })();
+      if (performance.now() - t0 >= SESSION_PREF_WAIT_MS) return;
+      requestAnimationFrame(wait);
+    }
+    requestAnimationFrame(wait);
   }
   nunusBetamaxMainSchedule();
 })();

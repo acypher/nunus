@@ -26,17 +26,13 @@ const SESSION_KEY = 'nunus_session_viewed';
 const sessionCanonicalRootByKey = new Map();
 
 const VIEWED_STYLE = {
-  opacity: '0.4',
-  filter: 'grayscale(0.8)',
-  transition: 'opacity 0.3s ease, filter 0.3s ease'
-};
-
-/** Stronger dim for stories matching a user "Enough, already" topic (headline + lede; popup list). */
-const TOPIC_BLOCKED_STYLE = {
   opacity: '0.2',
   filter: 'grayscale(1) brightness(0.72)',
   transition: 'opacity 0.3s ease, filter 0.3s ease'
 };
+
+/** Same visuals as viewed; kept as an alias for topic-blocked code paths. */
+const TOPIC_BLOCKED_STYLE = VIEWED_STYLE;
 
 function getTabSessionViewedSet() {
   try {

@@ -3,7 +3,9 @@ const ext = globalThis.browser ?? globalThis.chrome;
 
 const STORAGE_KEY = 'nunus_viewed_articles';
 const SESSION_KEY = 'nunus_session_viewed';
-const DISABLE_VIDEO_AUTOPLAY_KEY = 'nunusDisableVideoAutoplay';
+/** `true` = user chose to stop/block NYT video autoplay (positive wording). */
+const STOP_VIDEO_AUTOPLAY_KEY = 'nunusStopVideoAutoplay';
+const LEGACY_DISABLE_VIDEO_AUTOPLAY_KEY = 'nunusDisableVideoAutoplay';
 const STORAGE_BLOCK_TOPICS_KEY = 'nunus_block_topics';
 
 function normalizeBlockTopicsList(arr) {
@@ -41,10 +43,25 @@ async function renderBlockTopicsList() {
   });
 }
 
-async function loadDisableVideoAutoplayCheckbox() {
-  const r = await ext.storage.local.get({ [DISABLE_VIDEO_AUTOPLAY_KEY]: false });
-  const cb = document.getElementById('disableVideoAutoplay');
-  if (cb) cb.checked = r[DISABLE_VIDEO_AUTOPLAY_KEY] === true;
+async function migrateVideoAutoplayPref() {
+  const r = await ext.storage.local.get([
+    STOP_VIDEO_AUTOPLAY_KEY,
+    LEGACY_DISABLE_VIDEO_AUTOPLAY_KEY
+  ]);
+  if (Object.prototype.hasOwnProperty.call(r, STOP_VIDEO_AUTOPLAY_KEY)) return;
+  if (Object.prototype.hasOwnProperty.call(r, LEGACY_DISABLE_VIDEO_AUTOPLAY_KEY)) {
+    await ext.storage.local.set({
+      [STOP_VIDEO_AUTOPLAY_KEY]: r[LEGACY_DISABLE_VIDEO_AUTOPLAY_KEY] === true
+    });
+    await ext.storage.local.remove(LEGACY_DISABLE_VIDEO_AUTOPLAY_KEY);
+  }
+}
+
+async function loadStopVideoAutoplayCheckbox() {
+  await migrateVideoAutoplayPref();
+  const r = await ext.storage.local.get({ [STOP_VIDEO_AUTOPLAY_KEY]: false });
+  const cb = document.getElementById('stopVideoAutoplay');
+  if (cb) cb.checked = r[STOP_VIDEO_AUTOPLAY_KEY] === true;
 }
 
 /** Which list is currently shown in #viewedResults ('viewed' | 'newly' | null). */
@@ -402,13 +419,13 @@ document.getElementById('showNewlyViewedBtn').addEventListener('click', () => {
   void showNewlyViewedArticles();
 });
 
-document.getElementById('disableVideoAutoplay').addEventListener('change', async e => {
+document.getElementById('stopVideoAutoplay').addEventListener('change', async e => {
   const checked = e.target.checked;
-  await ext.storage.local.set({ [DISABLE_VIDEO_AUTOPLAY_KEY]: checked });
+  await ext.storage.local.set({ [STOP_VIDEO_AUTOPLAY_KEY]: checked });
   const statusEl = document.getElementById('status');
-  statusEl.textContent = 'Reload nytimes.com tabs for video autoplay setting to apply.';
+  statusEl.textContent = 'Reload nytimes.com tabs for the video autoplay setting to apply.';
   setTimeout(() => {
-    if (statusEl.textContent === 'Reload nytimes.com tabs for video autoplay setting to apply.') {
+    if (statusEl.textContent === 'Reload nytimes.com tabs for the video autoplay setting to apply.') {
       statusEl.textContent = '';
     }
   }, 4000);
@@ -448,5 +465,5 @@ document.getElementById('blockTopicsList')?.addEventListener('click', async e =>
   await renderBlockTopicsList();
 });
 
-void loadDisableVideoAutoplayCheckbox();
+void loadStopVideoAutoplayCheckbox();
 void renderBlockTopicsList();

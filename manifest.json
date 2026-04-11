@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "1.3.1",
-  "description": "Nunus helps you find what's new on the New York Times front page since you last checked.",
+  "version": "1.3.3",
+  "description": "Gray out NYTimes homepage headlines you have seen. Optional: stop video autoplay.",
   "browser_specific_settings": {
     "gecko": {
       "id": "nunus@nunus.extension",

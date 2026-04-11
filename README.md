@@ -43,6 +43,14 @@ Uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 
 Increment the version in `manifest.json` when making changes.
 
+## Packaging (Chrome + Firefox)
+
+- **`scripts/newnunus.sh`** — reads `manifest.json` **version**, writes **`../nunus-<version>.zip`** (Chrome Web Store–style) and **`../nunus-<version>.xpi`** (Firefox; runs the same checks as `build-nunus-firefox-xpi.sh`). From your shell:  
+  `newnunus() { /path/to/NunusCursor/scripts/newnunus.sh "$@"; }`
+- **`scripts/build-nunus-firefox-xpi.sh`** — Firefox **only**; default output **`../nunus.xpi`** (override with **`NUNUS_XPI`**).
+
+Both artifacts exclude `safari/`, `samples/`, `.git`, IDE folders, `scripts/*`, and `*.iml`.
+
 ## Project structure
 
 - `core.js` - Shared logic (storage, visibility tracking, styling)
