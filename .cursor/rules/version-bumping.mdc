@@ -1,0 +1,15 @@
+---
+description: When bumping the Nunus version, update both manifest.json and Safari Xcode project files
+globs: manifest.json
+alwaysApply: false
+---
+
+# Version Bumping
+
+When bumping the Nunus version number, always update **all three** locations:
+
+1. **`manifest.json`** — the `"version"` field
+2. **`safari/NunusSafari.xcodeproj/project.pbxproj`** — all `MARKETING_VERSION` entries
+3. **`safari/scripts/gen_pbxproj.py`** — all `MARKETING_VERSION` entries
+
+All three must stay in sync.

@@ -6,8 +6,7 @@ Nunus helps you find what’s new on the New York Times front page since you las
 
 **What it does**
 
-When you revisit the NYTimes front page, Nunus automatically grays out any article titles you have already seen, so new stories stand out immediately.  
-As an unrelated bonus, you can optionally stop videos from autoplaying.
+When you revisit the NYTimes front page, Nunus automatically grays out any article titles you have already seen, so new stories stand out immediately.
 
 **How “already seen” is defined**
 
@@ -56,8 +55,6 @@ Both artifacts exclude `safari/`, `samples/`, `.git`, IDE folders, `scripts/*`, 
 - `core.js` - Shared logic (storage, visibility tracking, styling)
 - `content.js` - Entry point; dispatches to site handlers
 - `sites/nyt.js` - New York Times article detection / gray-out
-- `sites/nyt-betamax-main.js` - NYT MAIN-world `play()` hook (Betamax, cinemagraph, VHS grid, Gallery carousel)
-- `sites/nyt-videos.js` - NYT isolated-world video attribute / iframe tweaks
 - `sites/washingtonpost.js` - Washington Post
 - `sites/guardian.js` - The Guardian
 

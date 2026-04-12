@@ -7,7 +7,7 @@ Nunus is a browser extension that grays out news headlines you have already seen
 ## Data stored locally
 
 - **Viewed article titles** — stored in your browser's extension storage so Nunus can gray out headlines on future visits.
-- **User preferences** — such as whether video autoplay blocking is enabled.
+- **User preferences** — such as topic-blocking phrases.
 
 All data remains on your device in your browser's local extension storage. Nothing is sent to any server.
 
