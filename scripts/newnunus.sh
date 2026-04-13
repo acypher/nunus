@@ -5,6 +5,9 @@
 #   newnunus() { /path/to/NunusCursor/scripts/newnunus.sh "$@"; }
 #
 # Optional: NUNUS_EXTENSION_ROOT=/other/clone ./scripts/newnunus.sh
+#
+# Avoid aliasing this to `nnn` — that name is the popular jarun/nnn file manager
+# and can shadow your alias depending on zsh/plugin order.
 
 set -euo pipefail
 
@@ -32,6 +35,10 @@ rm -f "$ZIP"
 
 echo "Wrote $ZIP"
 
-NUNUS_XPI="$PARENT/nunus-${ver}.xpi" "$SCRIPT_DIR/build-nunus-firefox-xpi.sh"
+# Force the same tree as this script’s zip step; an exported NUNUS_EXTENSION_ROOT
+# from the interactive shell (e.g. in .zshrc) must not point the Firefox build elsewhere.
+echo "Building Firefox .xpi: $PARENT/nunus-${ver}.xpi"
+env NUNUS_EXTENSION_ROOT="$ROOT" NUNUS_XPI="$PARENT/nunus-${ver}.xpi" \
+  "$SCRIPT_DIR/build-nunus-firefox-xpi.sh"
 
 echo "Wrote $PARENT/nunus-${ver}.xpi"
