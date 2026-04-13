@@ -58,6 +58,7 @@
     if (DATE_ARTICLE_PATH.test(u.pathname)) return true;
     if (u.pathname.startsWith('/interactive/')) return true;
     if (u.pathname.startsWith('/live/')) return true;
+    if (u.pathname.startsWith('/video/')) return true;
     // Wirecutter / Athletic promos use nyt://promo/ and paths without /YYYY/MM/DD/.
     if (u.pathname.startsWith('/wirecutter/')) return true;
     if (u.pathname.startsWith('/athletic/')) return true;

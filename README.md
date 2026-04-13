@@ -19,7 +19,7 @@ Press Option + ↓ (Mac) to jump straight to the next unseen title on the page.
 **Typical use case**
 
 You read the Times over breakfast. As a news junkie, you check back in the afternoon. Most of the stories are the same — but several new ones have been added during the day. With Nunus, everything you have already seen is grayed out, so the new stories are immediately visible without any scanning.  
-Also useful on the weekend, when the Times frequently recycles articles from earlier in the week or even from previous weeks. Nunus grays those out too, so you only spend time on what is actually new to you.
+Especially useful on the weekend, when the Times frequently recycles articles from earlier in the week or even from previous weeks. Nunus grays those out too, so you only spend time on what is actually new to you.
 
 ## Installation
 
