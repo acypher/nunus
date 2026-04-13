@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Versioned Chrome/Web Store zip + Firefox .xpi in one step (manifest version in filenames).
 #
-# ~/.zshrc:
+# Shell setup (define in the rc file for the shell you actually use):
+#
+#   ~/.zshrc   — zsh (default login shell on macOS Terminal)
+#   ~/.bashrc  — interactive bash only; zsh does not read this unless you source it
+#
 #   newnunus() { /path/to/NunusCursor/scripts/newnunus.sh "$@"; }
+#   alias nunuspack=newnunus   # optional; avoid `nnn` (jarun/nnn file manager)
 #
 # Optional: NUNUS_EXTENSION_ROOT=/other/clone ./scripts/newnunus.sh
-#
-# Avoid aliasing this to `nnn` — that name is the popular jarun/nnn file manager
-# and can shadow your alias depending on zsh/plugin order.
 
 set -euo pipefail
 
