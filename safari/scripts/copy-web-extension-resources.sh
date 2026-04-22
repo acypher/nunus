@@ -10,9 +10,19 @@
 set -eu
 WEBROOT="${NUNUS_WEBROOT:-${PROJECT_DIR}/..}"
 WRAPPER="${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}"
-# macOS .appex: web assets MUST be under Contents/Resources/. Copying into the
-# bundle root causes: codesign "unsealed contents present in the bundle root".
-OUT="${WRAPPER}/Contents/Resources"
+# macOS .appex: Contents/Resources only. iOS .appex: Resources/ only — never the .appex
+# root, or codesign fails ("unsealed contents present in the bundle root").
+case "${PLATFORM_NAME:-}" in
+  macosx) OUT="${WRAPPER}/Contents/Resources" ;;
+  *)      OUT="${WRAPPER}/Resources" ;;
+esac
+if [ "${PLATFORM_NAME:-}" != "macosx" ]; then
+  rm -rf "${WRAPPER}/Contents" 2>/dev/null || true
+  for f in manifest.json popup.html popup.js core.js content.js background.js ext-chrome-shim.js; do
+    rm -f "${WRAPPER}/${f}"
+  done
+  rm -rf "${WRAPPER}/icons" "${WRAPPER}/sites"
+fi
 mkdir -p "${OUT}"
 for f in manifest.json popup.html popup.js core.js content.js background.js ext-chrome-shim.js; do
   cp "${WEBROOT}/${f}" "${OUT}/"

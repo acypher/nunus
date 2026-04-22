@@ -1,57 +1,107 @@
-# Safari (Xcode) and `copy-web-extension-resources.sh`
+# Safari (Xcode): macOS and iOS
 
-The Chrome/Firefox extension files live at the **repo root** (`manifest.json`, `popup.html`, `core.js`, `sites/`, …). The Safari **Nunus Extension** `.appex` must contain the same files in its **Resources** folder. This script copies them at build time.
+The Chrome/Firefox extension lives at the **repo root** (`manifest.json`, `popup.html`, `core.js`, `sites/`, …). Each Safari **Web Extension** `.appex` must ship the same files inside its bundle. [`scripts/copy-web-extension-resources.sh`](scripts/copy-web-extension-resources.sh) copies them at build time.
 
-## 1. Add a Run Script phase (Nunus Extension target)
+This Xcode project has **four targets**:
 
-1. Open your Xcode project.
-2. Select the **Nunus Extension** target (the `.appex`, not the host app).
-3. **Build Phases** → **+** → **New Run Script Phase**.
-4. Drag that phase **above** **Copy Bundle Resources** (or clear **Copy Bundle Resources** so only the script supplies web assets).
-5. **Turn off User Script Sandboxing** for this target (Xcode 15+ blocks `cp` into the `.appex` otherwise):
-   - Select the **Nunus Extension** target → **Build Settings** → search **user script** → set **Enable User Script Sandboxing** to **No**,  
-   - *or* open the Run Script phase and disable sandboxing there if Xcode shows that option.
-6. **Shell:** `/bin/sh`
-7. **Script body** — pick **one** approach:
+| Platform | Host app | Extension `.appex` |
+|----------|----------|----------------------|
+| **macOS** | `NunusHost` | `Nunus Extension` |
+| **iOS** | `NunusHostIOS` | `NunusExtensioniOS` |
 
-**A — Xcode project is inside this repo** (e.g. `NunusCursor/safari/NunusSafari.xcodeproj`):
+**Deployment (see `project.pbxproj` / `gen_pbxproj.py`):** macOS **14.0+**, iOS **17.0+**. That matches `SafariWebExtensionHandler.swift`, which uses `SFExtensionProfileKey` (not available on older OS releases).
+
+**End users:** The host app is only a shell; the extension runs in Safari. In-app copy matches [`Shared/NunusHostApp.swift`](Shared/NunusHostApp.swift): **Mac** — Safari → Settings → Extensions; **iPhone/iPad** — Settings → Apps → Safari → Extensions (wording may vary slightly by iOS version).
+
+---
+
+## 1. Run Script phase (each extension target)
+
+Repeat for **both** `Nunus Extension` (Mac) and `NunusExtensioniOS` (iOS):
+
+1. Open `safari/NunusSafari.xcodeproj`.
+2. Select the **extension** target (the `.appex`, not the host app).
+3. **Build Phases** → confirm a **Run Script** named like **Copy web extension resources** runs **before** **Copy Bundle Resources** (if present). The checked-in project already wires this; only add it in a fresh project.
+4. **Turn off User Script Sandboxing** for that target (Xcode 15+ otherwise blocks `cp` into the `.appex`):
+   - Extension target → **Build Settings** → **Enable User Script Sandboxing** → **No**,  
+   - or disable sandboxing on the Run Script phase if Xcode offers it.
+5. **Shell:** `/bin/sh`
+6. **Script body** — use one of:
+
+**A — Project lives in this repo** (`NunusCursor/safari/NunusSafari.xcodeproj`):
 
 ```sh
-/bin/sh "${PROJECT_DIR}/scripts/copy-web-extension-resources.sh"
+cd "$PROJECT_DIR" && /bin/sh ./scripts/copy-web-extension-resources.sh
 ```
 
-**B — Xcode project lives somewhere else** (e.g. `~/Site/Nunus/`). Set the repo root explicitly:
+**B — Project elsewhere:** set the repo root that contains `manifest.json`:
 
 ```sh
 export NUNUS_WEBROOT="/Users/you/Projects/extensions/nunus/NunusCursor"
 /bin/sh "${NUNUS_WEBROOT}/safari/scripts/copy-web-extension-resources.sh"
 ```
 
-Adjust `NUNUS_WEBROOT` to your real **NunusCursor** path (the folder that contains `manifest.json`).
+7. Remove template web files from **Copy Bundle Resources** on the extension target (`Main.html`, `Script.js`, extra `manifest.json`, etc.) so only the script supplies assets.
+8. **Optional — “Run Script … does not specify any outputs”:** Uncheck **Based on dependency analysis** on the Run Script, or add **Output Files** such as `$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/manifest.json` if paths match your platform layout.
 
-8. Remove template files from **Copy Bundle Resources** on **Nunus Extension** (`Main.html`, `Script.js`, duplicate `manifest.json`, etc.) so you do not ship two different versions.
+---
 
-9. **Optional — silence "Run Script … does not specify any outputs":** Open the Run Script phase and **uncheck** **Based on dependency analysis** (Xcode 14+). That tells Xcode you intentionally run the copy step on every build, which is reasonable when syncing from git. Alternatively, add **Output Files** such as `$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/manifest.json` if you want dependency-based skipping (only helps if inputs/outputs are wired correctly).
+## 2. Where the script puts web assets
 
-## 2. Build and check
+| Platform | Path inside the `.appex` |
+|----------|---------------------------|
+| **macOS** | `Contents/Resources/` |
+| **iOS** | `Resources/` (not the `.appex` root) |
 
-1. **Product → Build**.
-2. In the Report navigator, confirm the Run Script ran without errors.
-3. In **Derived Data** (or the built product), open **`Nunus Extension.appex`** → **`Contents/Resources`** and verify `manifest.json`, `popup.html`, `core.js`, `ext-chrome-shim.js`, `icons/`, `sites/`, etc.
+The script uses `PLATFORM_NAME` from Xcode. On iOS it also deletes stale copies of web files from the bundle root (and any old `Contents/` folder) so **codesign** does not fail with *unsealed contents present in the bundle root*.
 
-You do not need `chmod +x` if the Run Script uses `/bin/sh …/copy-web-extension-resources.sh` as above.
+---
+
+## 3. Build and verify
+
+### macOS
+
+1. Scheme **NunusHost** → **Product → Build**.
+2. In Report navigator, confirm the Run Script ran without errors.
+3. Open the built **`Nunus Extension.appex`** → **`Contents/Resources`** and confirm `manifest.json`, `popup.html`, `core.js`, `ext-chrome-shim.js`, `icons/`, `sites/`, etc.
+
+### iOS
+
+1. Scheme **NunusHostIOS** → select a simulator or device → **Product → Build**.
+2. Open **`NunusExtensioniOS.appex`** → **`Resources`** and confirm the same set of files (nothing duplicated at the `.appex` root).
+
+You do not need `chmod +x` when invoking the script with `/bin/sh …/copy-web-extension-resources.sh`.
+
+---
+
+## 4. Regenerating `project.pbxproj`
+
+The canonical generator is [`scripts/gen_pbxproj.py`](scripts/gen_pbxproj.py). From the **repo root**:
+
+```sh
+python3 safari/scripts/gen_pbxproj.py
+```
+
+Then re-open the project in Xcode if needed.
+
+---
 
 ## Troubleshooting
 
 ### `cp: … Operation not permitted` / `Sandbox: … deny file-write-create`
 
-That is **User Script Sandboxing** in Xcode, not a problem with the shell script. Follow step 5 above (**Enable User Script Sandboxing** = **No** on the **Nunus Extension** target), then **Product → Build** again.
+**User Script Sandboxing** on the **extension** target. Set **Enable User Script Sandboxing** to **No** (see §1), then build again.
 
-### `unsealed contents present in the bundle root` (CodeSign)
+### `unsealed contents present in the bundle root` (codesign)
 
-The copy script put **`manifest.json` (or other files) in the root of the `.appex`**. On macOS, web assets must live under **`Contents/Resources/`**. Use the current [`scripts/copy-web-extension-resources.sh`](scripts/copy-web-extension-resources.sh) from this repo (it always targets that folder), then **Clean Build Folder** and build again. Remove any stray files from the `.appex` root in Finder if an old build left them there.
+- **macOS:** Web assets must be only under **`Contents/Resources/`**, not the `.appex` root.
+- **iOS:** Web assets must be only under **`Resources/`**. Files at the `.appex` root (or a stray **`Contents/`** tree) will trigger this; use the current copy script, **Clean Build Folder**, and rebuild.
 
-### Mac App Store validation (`manifest.json` description / app icon)
+### Mac App Store validation (`manifest.json` description / icon)
 
-- **Safari Web Extension `description`:** Apple requires the root `manifest.json` **description** to be **112 characters or fewer** (stricter than the Chrome Web Store). Keep the store-style blurb short; put release notes in App Store Connect instead.
-- **Host app icon:** Mac App Store validation requires an icon in ICNS format with a 512pt @2x (1024x1024) image. The host target needs: (1) `Assets.xcassets/AppIcon.appiconset` populated with PNGs (16 through 1024px) — run `sh safari/scripts/generate-mac-app-icons.sh` to generate them from `icons/letterNu1024.png`; (2) `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` in the host target's Build Settings (`INFOPLIST_KEY_CFBundleIconFile` does **not** work — Xcode's generated-plist system ignores that legacy key); (3) `COMBINE_HIDPI_IMAGES = YES` (default for Mac targets). Optionally keep `AppIcon.icns` in Copy Bundle Resources as a fallback.
+- **Safari Web Extension `description`:** Apple caps the root `manifest.json` **description** at **112 characters** (stricter than Chrome Web Store). Keep it short; use App Store Connect release notes for detail.
+- **Mac host icon:** Requires a full **App Icon** set including **1024×1024** — run `sh safari/scripts/generate-mac-app-icons.sh` from `icons/letterNu1024.png`, with **`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`** on the **Mac host** target. See comments in `gen_pbxproj.py` / asset catalog.
+
+### iOS: `ValidateEmbeddedBinary` / “Couldn't load Info dictionary”
+
+If Xcode’s validator fails but `plutil` / `defaults read` on the `.appex/Info.plist` works, try **Clean Build Folder**, delete **Derived Data** for this project, or update Xcode — some toolchain betas have flaky `embeddedBinaryValidationUtility` behavior.

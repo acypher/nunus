@@ -473,7 +473,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t);
-\t\t\t\tMACOSX_DEPLOYMENT_TARGET = 12.0;
+\t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
 \t\t\t\tMARKETING_VERSION = 1.4.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHost;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
@@ -498,7 +498,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t);
-\t\t\t\tMACOSX_DEPLOYMENT_TARGET = 12.0;
+\t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
 \t\t\t\tMARKETING_VERSION = 1.4.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHost;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
@@ -523,7 +523,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t\t"@executable_path/../../../../Frameworks",
 \t\t\t\t);
-\t\t\t\tMACOSX_DEPLOYMENT_TARGET = 12.0;
+\t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
 \t\t\t\tMARKETING_VERSION = 1.4.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHost.NunusExtension;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
@@ -549,7 +549,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t\t"@executable_path/../../../../Frameworks",
 \t\t\t\t);
-\t\t\t\tMACOSX_DEPLOYMENT_TARGET = 12.0;
+\t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
 \t\t\t\tMARKETING_VERSION = 1.4.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHost.NunusExtension;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
@@ -574,7 +574,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\tINFOPLIST_KEY_UILaunchScreen_Generation = YES;
 \t\t\t\tINFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 \t\t\t\tINFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 16.0;
+\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 17.0;
 \t\t\t\tLD_RUNPATH_SEARCH_PATHS = (
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
@@ -604,7 +604,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\tINFOPLIST_KEY_UILaunchScreen_Generation = YES;
 \t\t\t\tINFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 \t\t\t\tINFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 16.0;
+\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 17.0;
 \t\t\t\tLD_RUNPATH_SEARCH_PATHS = (
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
@@ -630,7 +630,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\tINFOPLIST_FILE = Extension/Info.plist;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
 \t\t\t\tINFOPLIST_KEY_NSHumanReadableCopyright = "";
-\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 16.0;
+\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 17.0;
 \t\t\t\tLD_RUNPATH_SEARCH_PATHS = (
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
@@ -658,7 +658,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\tINFOPLIST_FILE = Extension/Info.plist;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
 \t\t\t\tINFOPLIST_KEY_NSHumanReadableCopyright = "";
-\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 16.0;
+\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 17.0;
 \t\t\t\tLD_RUNPATH_SEARCH_PATHS = (
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
