@@ -474,7 +474,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t);
 \t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
-\t\t\t\tMARKETING_VERSION = 1.4.1;
+\t\t\t\tMARKETING_VERSION = 1.5.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHost;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = macosx;
@@ -499,7 +499,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t);
 \t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
-\t\t\t\tMARKETING_VERSION = 1.4.1;
+\t\t\t\tMARKETING_VERSION = 1.5.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHost;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = macosx;
@@ -524,7 +524,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/../../../../Frameworks",
 \t\t\t\t);
 \t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
-\t\t\t\tMARKETING_VERSION = 1.4.1;
+\t\t\t\tMARKETING_VERSION = 1.5.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHost.NunusExtension;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = macosx;
@@ -550,7 +550,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/../../../../Frameworks",
 \t\t\t\t);
 \t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
-\t\t\t\tMARKETING_VERSION = 1.4.1;
+\t\t\t\tMARKETING_VERSION = 1.5.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHost.NunusExtension;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = macosx;
@@ -579,7 +579,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 1.4.1;
+\t\t\t\tMARKETING_VERSION = 1.5.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHostIOS;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = iphoneos;
@@ -609,7 +609,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 1.4.1;
+\t\t\t\tMARKETING_VERSION = 1.5.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHostIOS;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = iphoneos;
@@ -636,7 +636,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t\t"@executable_path/../../Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 1.4.1;
+\t\t\t\tMARKETING_VERSION = 1.5.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHostIOS.NunusExtensioniOS;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = iphoneos;
@@ -664,7 +664,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t\t"@executable_path/../../Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 1.4.1;
+\t\t\t\tMARKETING_VERSION = 1.5.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.nunus.NunusHostIOS.NunusExtensioniOS;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = iphoneos;

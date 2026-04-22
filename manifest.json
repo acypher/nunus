@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "Gray out NYTimes homepage headlines you have seen.",
   "browser_specific_settings": {
     "gecko": {
