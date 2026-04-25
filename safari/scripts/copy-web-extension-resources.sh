@@ -28,5 +28,5 @@ for f in manifest.json popup.html popup.js core.js content.js background.js ext-
   cp "${WEBROOT}/${f}" "${OUT}/"
 done
 mkdir -p "${OUT}/icons" "${OUT}/sites"
-rsync -a "${WEBROOT}/icons/" "${OUT}/icons/"
-rsync -a "${WEBROOT}/sites/" "${OUT}/sites/"
+rsync -a --exclude ".DS_Store" "${WEBROOT}/icons/" "${OUT}/icons/"
+rsync -a --exclude ".DS_Store" "${WEBROOT}/sites/" "${OUT}/sites/"

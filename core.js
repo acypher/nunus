@@ -276,6 +276,24 @@ function sortRootsByDocumentOrder(roots) {
   });
 }
 
+function sortRootsByVisualPosition(roots) {
+  roots.sort((a, b) => {
+    const ar = a.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    const atop = ar.top + window.scrollY;
+    const btop = br.top + window.scrollY;
+
+    // Treat tiny layout differences as the same visual row, then scan left to right.
+    if (Math.abs(atop - btop) > 2) return atop - btop;
+    if (Math.abs(ar.left - br.left) > 2) return ar.left - br.left;
+
+    const pos = a.compareDocumentPosition(b);
+    if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+    if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+    return 0;
+  });
+}
+
 function maxScrollY() {
   const vh = window.innerHeight;
   const h = Math.max(
@@ -302,6 +320,7 @@ function registerSkipGrayScroll(site) {
 
       const roots = flattenArticleRoots(site.findArticles());
       if (roots.length === 0) return;
+      sortRootsByVisualPosition(roots);
 
       e.preventDefault();
       e.stopPropagation();

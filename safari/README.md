@@ -104,4 +104,8 @@ Then re-open the project in Xcode if needed.
 
 ### iOS: `ValidateEmbeddedBinary` / “Couldn't load Info dictionary”
 
-If Xcode’s validator fails but `plutil` / `defaults read` on the `.appex/Info.plist` works, try **Clean Build Folder**, delete **Derived Data** for this project, or update Xcode — some toolchain betas have flaky `embeddedBinaryValidationUtility` behavior.
+On the Mac host, `Bundle.infoDictionary` is often **empty** for an iOS **`.appex`** (`CFBundlePackageType` = `XPC!`) even when `Info.plist` on disk is valid (`plutil -lint` passes and `NSDictionary(contentsOfFile:)` shows `NSExtension`). Xcode’s `embeddedBinaryValidationUtility` then fails with this message. **Clean Build Folder** / deleting **Derived Data** does not fix that class of failure.
+
+**What usually works:** build and **Archive** with a **release** Xcode (for example **16.x**) via `xcode-select`, or from a machine where command-line `xcodebuild` for **NunusHostIOS** completes past `ValidateEmbeddedBinary`. Keep **Signing & Capabilities** set to your **Team** for both iOS targets (device and archive builds need a real identity).
+
+**Also verify:** the extension `Info.plist` still contains `NSExtension` / `com.apple.Safari.web-extension` (do not rely on `INFOPLIST_KEY_NSExtension_*` alone — Xcode may omit the nested dictionary). The checked-in [`Extension/Info.plist`](Extension/Info.plist) is the source of truth.
