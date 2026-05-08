@@ -30,6 +30,14 @@
     return normalizeTitle(link.textContent);
   }
 
+  function getArticleUrl(root) {
+    const link = root?.querySelector(linkSelector) || root?.closest(linkSelector) || (root?.tagName === 'A' ? root : null);
+    if (!link || !link.href) return null;
+    const url = new URL(link.href);
+    if (!urlPattern.test(url.pathname)) return null;
+    return link.href;
+  }
+
   function findArticles() {
     const articles = new Map();
     const add = (id, el) => {
@@ -94,6 +102,7 @@
     findArticles,
     isHomepage,
     getVisibilityTargets,
-    getBlockTopicHaystack
+    getBlockTopicHaystack,
+    getArticleUrl
   };
 })();

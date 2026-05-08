@@ -93,6 +93,16 @@
     return false;
   }
 
+  function getArticleUrl(root) {
+    if (!root) return null;
+    for (const a of root.querySelectorAll('a[href]')) {
+      if (anchorLooksLikeArticle(a)) return a.href;
+    }
+    const wrap = root.closest('a[href]');
+    if (wrap && anchorLooksLikeArticle(wrap)) return wrap.href;
+    return null;
+  }
+
   function rectIntersectionArea(a, b) {
     const left = Math.max(a.left, b.left);
     const right = Math.min(a.right, b.right);
@@ -356,6 +366,7 @@
     findArticles,
     isHomepage,
     getVisibilityTargets,
-    getBlockTopicHaystack
+    getBlockTopicHaystack,
+    getArticleUrl
   };
 })();

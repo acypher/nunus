@@ -6,8 +6,9 @@
  * "Session" for gray-out / newly-viewed is tab-local: window.sessionStorage
  * (survives reload in the same tab; new tab = fresh session).
  *
- * Same title on the page more than once: after you read it this session, only the
- * canonical occurrence stays ungrayed; extra placements are grayed as duplicates.
+ * Same title on the page more than once, or same URL with a different title in
+ * this tab session: after you read it, only the canonical occurrence stays
+ * ungrayed; extra placements are grayed as duplicates.
  */
 
 /** WebExtension namespace: prefer `browser` when present, else `chrome`. */
@@ -21,9 +22,12 @@ const STORAGE_KEY = 'nunus_viewed_articles';
 const LEGACY_STORAGE_KEY = 'nunusnyt_viewed_articles';
 const STORAGE_BLOCK_TOPICS_KEY = 'nunus_block_topics';
 const SESSION_KEY = 'nunus_session_viewed';
+const SESSION_URL_KEY = 'nunus_session_viewed_urls';
 
 /** storage key -> root kept ungrayed this session when the same story appears twice */
 const sessionCanonicalRootByKey = new Map();
+/** normalized URL -> root kept ungrayed this session when the same story has multiple titles */
+const sessionCanonicalRootByUrlKey = new Map();
 
 const VIEWED_STYLE = {
   opacity: '0.2',
@@ -48,6 +52,30 @@ function getTabSessionViewedSet() {
 function saveTabSessionViewedSet(sessionViewed) {
   try {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify([...sessionViewed]));
+  } catch (_) {}
+}
+
+function getTabSessionViewedUrlMap() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_URL_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out = {};
+    for (const [urlKey, viewedKey] of Object.entries(parsed)) {
+      if (typeof urlKey === 'string' && typeof viewedKey === 'string') {
+        out[urlKey] = viewedKey;
+      }
+    }
+    return out;
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveTabSessionViewedUrlMap(urlMap) {
+  try {
+    sessionStorage.setItem(SESSION_URL_KEY, JSON.stringify(urlMap));
   } catch (_) {}
 }
 
@@ -109,19 +137,58 @@ function isArticleViewed(viewed, hostname, articleId) {
   return viewed.has(getViewedKey(hostname, articleId)) || viewed.has(articleId);
 }
 
-async function markAsViewed(articleId, canonicalRoot) {
+function normalizeArticleUrlKey(rawUrl) {
+  if (!rawUrl) return null;
+  try {
+    const u = new URL(rawUrl, window.location.href);
+    const pathname = u.pathname.replace(/\/+$/, '') || '/';
+    return `${u.hostname}${pathname}`;
+  } catch (_) {
+    return null;
+  }
+}
+
+function getArticleUrlKey(site, articleRoot) {
+  if (!articleRoot || typeof site.getArticleUrl !== 'function') return null;
+  return normalizeArticleUrlKey(site.getArticleUrl(articleRoot));
+}
+
+async function saveViewedState(viewed, sessionViewed) {
+  await ext.storage.local.set({ [STORAGE_KEY]: [...viewed] });
+  saveTabSessionViewedSet(sessionViewed);
+}
+
+function rememberCanonicalRootForUrl(urlKey, key, canonicalRoot) {
+  if (!urlKey || !(canonicalRoot instanceof Element)) return;
+  const existing = sessionCanonicalRootByUrlKey.get(urlKey);
+  if (!existing || !existing.isConnected) {
+    sessionCanonicalRootByUrlKey.set(urlKey, canonicalRoot);
+  }
+  const urlCanonical = sessionCanonicalRootByUrlKey.get(urlKey);
+  if (urlCanonical instanceof Element) {
+    sessionCanonicalRootByKey.set(key, urlCanonical);
+  }
+}
+
+async function markAsViewed(site, articleId, canonicalRoot) {
   const hostname = window.location.hostname;
   const key = getViewedKey(hostname, articleId);
   const viewed = await getViewed();
   viewed.add(key);
-  await ext.storage.local.set({ [STORAGE_KEY]: [...viewed] });
 
   const sessionViewed = getTabSessionViewedSet();
   sessionViewed.add(key);
-  saveTabSessionViewedSet(sessionViewed);
+  await saveViewedState(viewed, sessionViewed);
 
   if (canonicalRoot instanceof Element) {
     sessionCanonicalRootByKey.set(key, canonicalRoot);
+  }
+  const urlKey = getArticleUrlKey(site, canonicalRoot);
+  if (urlKey) {
+    const urlMap = getTabSessionViewedUrlMap();
+    if (!urlMap[urlKey]) urlMap[urlKey] = key;
+    saveTabSessionViewedUrlMap(urlMap);
+    rememberCanonicalRootForUrl(urlKey, key, canonicalRoot);
   }
 }
 
@@ -189,6 +256,53 @@ function articleMatchesBlockTopics(site, articleRoot, articleId, blockTopics) {
   const haystack = getBlockTopicHaystack(site, articleRoot, articleId).toLowerCase();
   if (!haystack) return false;
   return blockTopics.some(topic => topicMatchesHaystack(haystack, topic));
+}
+
+async function markSessionUrlRepeatAsViewed(
+  site,
+  id,
+  elements,
+  viewedArticles,
+  sessionViewed,
+  hostname
+) {
+  const key = getViewedKey(hostname, id);
+  if (sessionViewed.has(key)) return false;
+
+  const urlMap = getTabSessionViewedUrlMap();
+  let matchedUrlKey = null;
+  let matchedViewedKey = null;
+  for (const element of elements) {
+    const urlKey = getArticleUrlKey(site, element);
+    if (!urlKey || !urlMap[urlKey]) continue;
+    matchedUrlKey = urlKey;
+    matchedViewedKey = urlMap[urlKey];
+    break;
+  }
+  if (!matchedUrlKey || !matchedViewedKey) return false;
+
+  viewedArticles.add(key);
+  sessionViewed.add(key);
+  await saveViewedState(viewedArticles, sessionViewed);
+
+  const urlCanonical = sessionCanonicalRootByUrlKey.get(matchedUrlKey);
+  if (urlCanonical instanceof Element && urlCanonical.isConnected) {
+    sessionCanonicalRootByKey.set(key, urlCanonical);
+  }
+  return true;
+}
+
+function rememberSessionUrlCanonicalRoots(site, id, elements, sessionViewed, hostname) {
+  const key = getViewedKey(hostname, id);
+  if (!sessionViewed.has(key)) return;
+
+  const urlMap = getTabSessionViewedUrlMap();
+  for (const element of elements) {
+    const urlKey = getArticleUrlKey(site, element);
+    if (!urlKey || urlMap[urlKey] !== key) continue;
+    rememberCanonicalRootForUrl(urlKey, key, element);
+    return;
+  }
 }
 
 function applyTopicBlockedStyle(element) {
@@ -383,9 +497,19 @@ async function run(site) {
       } else {
         for (const element of elements) articles.get(id).add(element);
       }
+      rememberSessionUrlCanonicalRoots(site, id, [...elements], sessionNow, hostname);
+      const markedUrlRepeat = await markSessionUrlRepeatAsViewed(
+        site,
+        id,
+        [...elements],
+        viewedArticles,
+        sessionNow,
+        hostname
+      );
       const root = pickArticleRootForTopics([...elements]);
       if (articleMatchesBlockTopics(site, root, id, blockTopics)) trackedIds.delete(id);
-      else if (!isArticleViewed(viewedArticles, hostname, id)) trackedIds.add(id);
+      else if (markedUrlRepeat || isArticleViewed(viewedArticles, hostname, id)) trackedIds.delete(id);
+      else trackedIds.add(id);
       syncGrayForElements(
         site,
         [...elements],
@@ -400,6 +524,16 @@ async function run(site) {
 
   // Sync gray from persistent storage vs this tab's session; strip when session has the key.
   for (const [id, elements] of articles) {
+    rememberSessionUrlCanonicalRoots(site, id, [...elements], sessionViewed, hostname);
+    const markedUrlRepeat = await markSessionUrlRepeatAsViewed(
+      site,
+      id,
+      [...elements],
+      viewedArticles,
+      sessionViewed,
+      hostname
+    );
+    if (markedUrlRepeat) trackedIds.delete(id);
     syncGrayForElements(
       site,
       [...elements],
@@ -444,7 +578,7 @@ async function run(site) {
           trackedIds.delete(id);
           dwellStartById.delete(id);
           const canonical = visibleRoots[0];
-          await markAsViewed(id, canonical);
+          await markAsViewed(site, id, canonical);
           await mergeNewArticles();
         }
       } else {

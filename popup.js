@@ -3,6 +3,7 @@ const ext = globalThis.browser ?? globalThis.chrome;
 
 const STORAGE_KEY = 'nunus_viewed_articles';
 const SESSION_KEY = 'nunus_session_viewed';
+const SESSION_URL_KEY = 'nunus_session_viewed_urls';
 const STORAGE_BLOCK_TOPICS_KEY = 'nunus_block_topics';
 
 function normalizeBlockTopicsList(arr) {
@@ -73,12 +74,13 @@ async function clearTabSessionKeys(tabId) {
   try {
     await ext.scripting.executeScript({
       target: { tabId },
-      func: (k) => {
+      func: (sessionKey, sessionUrlKey) => {
         try {
-          sessionStorage.removeItem(k);
+          sessionStorage.removeItem(sessionKey);
+          sessionStorage.removeItem(sessionUrlKey);
         } catch (_) {}
       },
-      args: [SESSION_KEY]
+      args: [SESSION_KEY, SESSION_URL_KEY]
     });
   } catch (_) {}
 }

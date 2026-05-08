@@ -39,6 +39,16 @@
     return normalizeTitle(link.textContent);
   }
 
+  function getArticleUrl(root) {
+    const link = root?.querySelector(linkSelector)
+      || root?.closest(linkSelector)
+      || (root?.tagName === 'A' ? root : null);
+    if (!link || !link.href) return null;
+    const url = new URL(link.href);
+    if (!urlPattern.test(url.pathname)) return null;
+    return link.href;
+  }
+
   // Shadow DOM-aware query (consistent with nyt.js)
   function* queryAll(root, selector) {
     try {
@@ -115,6 +125,7 @@
     findArticles,
     isHomepage,
     getVisibilityTargets,
-    getBlockTopicHaystack
+    getBlockTopicHaystack,
+    getArticleUrl
   };
 })();
