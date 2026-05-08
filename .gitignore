@@ -3,3 +3,7 @@
 
 # Xcode per-user state (not shared)
 **/xcuserdata/
+
+# Local Safari build artifacts / backup projects
+safari/build/
+safari/NunusSafari (from backup).xcodeproj/
