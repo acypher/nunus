@@ -6,9 +6,9 @@
  * "Session" for gray-out / newly-viewed is tab-local: window.sessionStorage
  * (survives reload in the same tab; new tab = fresh session).
  *
- * Same title on the page more than once, or same URL with a different title in
- * this tab session: after you read it, only the canonical occurrence stays
- * ungrayed; extra placements are grayed as duplicates.
+ * Same article URL on the page more than once: after you read it this session,
+ * only the canonical occurrence stays ungrayed; extra placements are grayed as
+ * duplicates. Titles are display metadata and may change for the same URL.
  */
 
 /** WebExtension namespace: prefer `browser` when present, else `chrome`. */
@@ -19,15 +19,14 @@ const CHECK_INTERVAL_MS = 500;
 /** Min visible width/height (px) of the title rect inside the viewport. */
 const TITLE_VISIBLE_MIN_PX = 20;
 const STORAGE_KEY = 'nunus_viewed_articles';
+const STORAGE_TITLES_KEY = 'nunus_viewed_article_titles';
 const LEGACY_STORAGE_KEY = 'nunusnyt_viewed_articles';
 const STORAGE_BLOCK_TOPICS_KEY = 'nunus_block_topics';
 const SESSION_KEY = 'nunus_session_viewed';
-const SESSION_URL_KEY = 'nunus_session_viewed_urls';
+const SESSION_TITLES_KEY = 'nunus_session_viewed_titles';
 
 /** storage key -> root kept ungrayed this session when the same story appears twice */
 const sessionCanonicalRootByKey = new Map();
-/** normalized URL -> root kept ungrayed this session when the same story has multiple titles */
-const sessionCanonicalRootByUrlKey = new Map();
 
 const VIEWED_STYLE = {
   opacity: '0.2',
@@ -55,17 +54,16 @@ function saveTabSessionViewedSet(sessionViewed) {
   } catch (_) {}
 }
 
-function getTabSessionViewedUrlMap() {
+function getTabSessionTitleMap() {
   try {
-    const raw = sessionStorage.getItem(SESSION_URL_KEY);
+    const raw = sessionStorage.getItem(SESSION_TITLES_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
     const out = {};
-    for (const [urlKey, viewedKey] of Object.entries(parsed)) {
-      if (typeof urlKey === 'string' && typeof viewedKey === 'string') {
-        out[urlKey] = viewedKey;
-      }
+    for (const [key, titles] of Object.entries(parsed)) {
+      if (!Array.isArray(titles)) continue;
+      out[key] = [...new Set(titles.map(t => String(t).trim()).filter(Boolean))];
     }
     return out;
   } catch (_) {
@@ -73,9 +71,9 @@ function getTabSessionViewedUrlMap() {
   }
 }
 
-function saveTabSessionViewedUrlMap(urlMap) {
+function saveTabSessionTitleMap(titleMap) {
   try {
-    sessionStorage.setItem(SESSION_URL_KEY, JSON.stringify(urlMap));
+    sessionStorage.setItem(SESSION_TITLES_KEY, JSON.stringify(titleMap));
   } catch (_) {}
 }
 
@@ -108,6 +106,7 @@ function titleVisibleForTracking(site, articleRoot) {
 
 // In-memory cache — avoids hitting extension storage on every markAsViewed call
 let _viewedCache = null;
+let _titleCache = null;
 
 async function loadViewedArticles() {
   const result = await ext.storage.local.get([STORAGE_KEY, LEGACY_STORAGE_KEY]);
@@ -129,8 +128,26 @@ async function getViewed() {
   return _viewedCache;
 }
 
+async function loadViewedArticleTitles() {
+  const result = await ext.storage.local.get({ [STORAGE_TITLES_KEY]: {} });
+  const raw = result[STORAGE_TITLES_KEY];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [key, titles] of Object.entries(raw)) {
+    if (!Array.isArray(titles)) continue;
+    out[key] = [...new Set(titles.map(t => String(t).trim()).filter(Boolean))];
+  }
+  return out;
+}
+
+async function getViewedArticleTitles() {
+  if (!_titleCache) _titleCache = await loadViewedArticleTitles();
+  return _titleCache;
+}
+
 function getViewedKey(hostname, articleId) {
-  return hostname + '|' + articleId;
+  const id = normalizeArticleUrlKey(articleId) || String(articleId || '').trim();
+  return hostname + '|' + id;
 }
 
 function isArticleViewed(viewed, hostname, articleId) {
@@ -148,9 +165,12 @@ function normalizeArticleUrlKey(rawUrl) {
   }
 }
 
-function getArticleUrlKey(site, articleRoot) {
-  if (!articleRoot || typeof site.getArticleUrl !== 'function') return null;
-  return normalizeArticleUrlKey(site.getArticleUrl(articleRoot));
+function getArticleDisplayTitle(site, articleRoot, fallback = '') {
+  if (articleRoot && typeof site.getArticleTitle === 'function') {
+    const title = String(site.getArticleTitle(articleRoot) || '').trim();
+    if (title) return title.replace(/\s+/g, ' ');
+  }
+  return String(fallback || '').trim();
 }
 
 async function saveViewedState(viewed, sessionViewed) {
@@ -158,15 +178,41 @@ async function saveViewedState(viewed, sessionViewed) {
   saveTabSessionViewedSet(sessionViewed);
 }
 
-function rememberCanonicalRootForUrl(urlKey, key, canonicalRoot) {
-  if (!urlKey || !(canonicalRoot instanceof Element)) return;
-  const existing = sessionCanonicalRootByUrlKey.get(urlKey);
-  if (!existing || !existing.isConnected) {
-    sessionCanonicalRootByUrlKey.set(urlKey, canonicalRoot);
+function addTitleToMap(titleMap, key, title) {
+  const t = String(title || '').trim().replace(/\s+/g, ' ');
+  if (!key || !t) return false;
+  const titles = Array.isArray(titleMap[key]) ? titleMap[key] : [];
+  if (titles.includes(t)) return false;
+  titleMap[key] = [...titles, t];
+  return true;
+}
+
+async function rememberArticleTitles(site, articleId, elements, sessionViewed, hostname) {
+  const key = getViewedKey(hostname, articleId);
+  const titles = [];
+  for (const element of elements) {
+    const title = getArticleDisplayTitle(site, element);
+    if (title && !titles.includes(title)) titles.push(title);
   }
-  const urlCanonical = sessionCanonicalRootByUrlKey.get(urlKey);
-  if (urlCanonical instanceof Element) {
-    sessionCanonicalRootByKey.set(key, urlCanonical);
+  if (!titles.length) return;
+
+  const titleMap = await getViewedArticleTitles();
+  let localChanged = false;
+  for (const title of titles) {
+    localChanged = addTitleToMap(titleMap, key, title) || localChanged;
+  }
+  if (localChanged) {
+    await ext.storage.local.set({ [STORAGE_TITLES_KEY]: titleMap });
+  }
+
+  if (!sessionViewed.has(key)) return;
+  const sessionTitleMap = getTabSessionTitleMap();
+  let sessionChanged = false;
+  for (const title of titles) {
+    sessionChanged = addTitleToMap(sessionTitleMap, key, title) || sessionChanged;
+  }
+  if (sessionChanged) {
+    saveTabSessionTitleMap(sessionTitleMap);
   }
 }
 
@@ -183,13 +229,7 @@ async function markAsViewed(site, articleId, canonicalRoot) {
   if (canonicalRoot instanceof Element) {
     sessionCanonicalRootByKey.set(key, canonicalRoot);
   }
-  const urlKey = getArticleUrlKey(site, canonicalRoot);
-  if (urlKey) {
-    const urlMap = getTabSessionViewedUrlMap();
-    if (!urlMap[urlKey]) urlMap[urlKey] = key;
-    saveTabSessionViewedUrlMap(urlMap);
-    rememberCanonicalRootForUrl(urlKey, key, canonicalRoot);
-  }
+  await rememberArticleTitles(site, articleId, [canonicalRoot], sessionViewed, hostname);
 }
 
 function applyViewedStyle(element) {
@@ -258,53 +298,6 @@ function articleMatchesBlockTopics(site, articleRoot, articleId, blockTopics) {
   return blockTopics.some(topic => topicMatchesHaystack(haystack, topic));
 }
 
-async function markSessionUrlRepeatAsViewed(
-  site,
-  id,
-  elements,
-  viewedArticles,
-  sessionViewed,
-  hostname
-) {
-  const key = getViewedKey(hostname, id);
-  if (sessionViewed.has(key)) return false;
-
-  const urlMap = getTabSessionViewedUrlMap();
-  let matchedUrlKey = null;
-  let matchedViewedKey = null;
-  for (const element of elements) {
-    const urlKey = getArticleUrlKey(site, element);
-    if (!urlKey || !urlMap[urlKey]) continue;
-    matchedUrlKey = urlKey;
-    matchedViewedKey = urlMap[urlKey];
-    break;
-  }
-  if (!matchedUrlKey || !matchedViewedKey) return false;
-
-  viewedArticles.add(key);
-  sessionViewed.add(key);
-  await saveViewedState(viewedArticles, sessionViewed);
-
-  const urlCanonical = sessionCanonicalRootByUrlKey.get(matchedUrlKey);
-  if (urlCanonical instanceof Element && urlCanonical.isConnected) {
-    sessionCanonicalRootByKey.set(key, urlCanonical);
-  }
-  return true;
-}
-
-function rememberSessionUrlCanonicalRoots(site, id, elements, sessionViewed, hostname) {
-  const key = getViewedKey(hostname, id);
-  if (!sessionViewed.has(key)) return;
-
-  const urlMap = getTabSessionViewedUrlMap();
-  for (const element of elements) {
-    const urlKey = getArticleUrlKey(site, element);
-    if (!urlKey || urlMap[urlKey] !== key) continue;
-    rememberCanonicalRootForUrl(urlKey, key, element);
-    return;
-  }
-}
-
 function applyTopicBlockedStyle(element) {
   element.style.opacity = TOPIC_BLOCKED_STYLE.opacity;
   element.style.filter = TOPIC_BLOCKED_STYLE.filter;
@@ -347,8 +340,9 @@ function syncGrayForElements(
   const topics = blockTopics || [];
 
   const topicRoot = pickArticleRootForTopics(elements);
+  const topicTitle = getArticleDisplayTitle(site, topicRoot, id);
   for (const element of elements) {
-    if (articleMatchesBlockTopics(site, topicRoot, id, topics)) {
+    if (articleMatchesBlockTopics(site, topicRoot, topicTitle, topics)) {
       removeViewedStyle(element);
       applyTopicBlockedStyle(element);
       continue;
@@ -476,7 +470,8 @@ async function run(site) {
       .filter(([id, elSet]) => {
         if (isArticleViewed(viewedArticles, hostname, id)) return false;
         const root = pickArticleRootForTopics([...elSet]);
-        return !articleMatchesBlockTopics(site, root, id, blockTopics);
+        const title = getArticleDisplayTitle(site, root, id);
+        return !articleMatchesBlockTopics(site, root, title, blockTopics);
       })
       .map(([id]) => id)
   );
@@ -497,18 +492,13 @@ async function run(site) {
       } else {
         for (const element of elements) articles.get(id).add(element);
       }
-      rememberSessionUrlCanonicalRoots(site, id, [...elements], sessionNow, hostname);
-      const markedUrlRepeat = await markSessionUrlRepeatAsViewed(
-        site,
-        id,
-        [...elements],
-        viewedArticles,
-        sessionNow,
-        hostname
-      );
+      if (isArticleViewed(viewedArticles, hostname, id)) {
+        await rememberArticleTitles(site, id, [...elements], sessionNow, hostname);
+      }
       const root = pickArticleRootForTopics([...elements]);
-      if (articleMatchesBlockTopics(site, root, id, blockTopics)) trackedIds.delete(id);
-      else if (markedUrlRepeat || isArticleViewed(viewedArticles, hostname, id)) trackedIds.delete(id);
+      const title = getArticleDisplayTitle(site, root, id);
+      if (articleMatchesBlockTopics(site, root, title, blockTopics)) trackedIds.delete(id);
+      else if (isArticleViewed(viewedArticles, hostname, id)) trackedIds.delete(id);
       else trackedIds.add(id);
       syncGrayForElements(
         site,
@@ -524,16 +514,9 @@ async function run(site) {
 
   // Sync gray from persistent storage vs this tab's session; strip when session has the key.
   for (const [id, elements] of articles) {
-    rememberSessionUrlCanonicalRoots(site, id, [...elements], sessionViewed, hostname);
-    const markedUrlRepeat = await markSessionUrlRepeatAsViewed(
-      site,
-      id,
-      [...elements],
-      viewedArticles,
-      sessionViewed,
-      hostname
-    );
-    if (markedUrlRepeat) trackedIds.delete(id);
+    if (isArticleViewed(viewedArticles, hostname, id)) {
+      await rememberArticleTitles(site, id, [...elements], sessionViewed, hostname);
+    }
     syncGrayForElements(
       site,
       [...elements],
@@ -559,7 +542,8 @@ async function run(site) {
     for (const [id, elements] of articles) {
       if (!trackedIds.has(id)) continue;
       const topicRoot = pickArticleRootForTopics([...elements]);
-      if (articleMatchesBlockTopics(site, topicRoot, id, blockTopics)) continue;
+      const topicTitle = getArticleDisplayTitle(site, topicRoot, id);
+      if (articleMatchesBlockTopics(site, topicRoot, topicTitle, blockTopics)) continue;
 
       const visibleRoots = [...elements].filter(
         el =>

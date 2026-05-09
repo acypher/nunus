@@ -7,14 +7,14 @@ alwaysApply: true
 
 When identifying or defining articles in this extension, follow these rules strictly:
 
-## 1. Use ONLY the article's title
+## 1. Use the canonical article URL as identity
 
-The article ID must be derived from the article's title. Never use URLs, slugs, or other identifiers as the article ID.
+The article ID and storage key should be derived from the article's canonical URL. Normalize URLs before using them as IDs: remove query strings and hashes, normalize host/path casing only where safe, and ignore trailing slashes.
 
 ## 2. Use position for multiple occurrences
 
 When the same article appears multiple times on a single page, use the article's position on the page to distinguish between occurrences.
 
-## 3. URLs are for verification only
+## 3. Treat titles as display metadata
 
-URLs may be used ONLY to verify that an element is indeed an article (e.g., matching URL patterns to filter out non-articles). URLs must NOT be used as the article ID or for storage keys.
+Article titles should be stored and shown as metadata associated with the URL. If the same URL is observed with multiple titles in a session, preserve those titles for user-facing lists such as newly viewed articles.

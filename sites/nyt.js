@@ -5,7 +5,7 @@
  * Article root: Vi homepage “story list item” wrappers (data-tpl="sli"),
  * section.story-wrapper heroes, and bottom rails: [data-testid$="-section"] article.
  * Title: headline slot [data-tpl="h"], label link [data-tpl="l"], or .indicate-hover.
- * URLs / data-uri: verification only (article-identification rule).
+ * URL: canonical article identity; title: display metadata.
  */
 (function() {
   const DATE_ARTICLE_PATH = /\/\d{4}\/\d{1,2}\/\d{1,2}\//;
@@ -349,8 +349,9 @@
 
     for (const root of collectStoryRoots()) {
       if (isArticleRootEffectivelyHidden(root)) continue;
-      const id = getTitleFromRoot(root);
-      if (id) add(id, root);
+      const title = getTitleFromRoot(root);
+      const id = getArticleUrl(root);
+      if (title && id) add(id, root);
     }
 
     return articles;
@@ -367,6 +368,7 @@
     isHomepage,
     getVisibilityTargets,
     getBlockTopicHaystack,
-    getArticleUrl
+    getArticleUrl,
+    getArticleTitle: getTitleFromRoot
   };
 })();

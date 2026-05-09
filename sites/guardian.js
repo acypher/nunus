@@ -75,14 +75,17 @@
           ? el.closest(containerSelectors) || el
           : el;
         if (!articleEl) continue;
-        const id = getArticleId(articleEl);
+        const title = getArticleId(articleEl);
+        const id = getArticleUrl(articleEl);
+        if (!title) continue;
         add(id, articleEl);
       }
     }
 
     for (const link of queryAll(document, linkSelector)) {
-      const id = getArticleId(link);
-      if (id) {
+      const title = getArticleId(link);
+      const id = getArticleUrl(link);
+      if (title && id) {
         const articleEl = link.closest('article')
           || link.closest('[data-link-name]')
           || link.closest('[data-component]')
@@ -126,6 +129,7 @@
     isHomepage,
     getVisibilityTargets,
     getBlockTopicHaystack,
-    getArticleUrl
+    getArticleUrl,
+    getArticleTitle: getArticleId
   };
 })();

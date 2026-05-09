@@ -50,14 +50,17 @@
       for (const el of document.querySelectorAll(selector)) {
         const articleEl = el.tagName === 'A' ? el.closest(containerSelectors) || el : el;
         if (!articleEl) continue;
-        const id = getArticleId(articleEl);
+        const title = getArticleId(articleEl);
+        const id = getArticleUrl(articleEl);
+        if (!title) continue;
         add(id, articleEl);
       }
     }
 
     for (const link of document.querySelectorAll(linkSelector)) {
-      const id = getArticleId(link);
-      if (id) {
+      const title = getArticleId(link);
+      const id = getArticleUrl(link);
+      if (title && id) {
         const articleEl = link.closest('article') || link.closest('[data-pb-layout]') || link.closest('[data-article-id]') || link.closest(containerSelectors) || link.parentElement?.closest('div') || link.parentElement || link;
         add(id, articleEl);
       }
@@ -103,6 +106,7 @@
     isHomepage,
     getVisibilityTargets,
     getBlockTopicHaystack,
-    getArticleUrl
+    getArticleUrl,
+    getArticleTitle: getArticleId
   };
 })();

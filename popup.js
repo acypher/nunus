@@ -2,8 +2,10 @@
 const ext = globalThis.browser ?? globalThis.chrome;
 
 const STORAGE_KEY = 'nunus_viewed_articles';
+const STORAGE_TITLES_KEY = 'nunus_viewed_article_titles';
 const SESSION_KEY = 'nunus_session_viewed';
-const SESSION_URL_KEY = 'nunus_session_viewed_urls';
+const SESSION_TITLES_KEY = 'nunus_session_viewed_titles';
+const LEGACY_SESSION_URL_KEY = 'nunus_session_viewed_urls';
 const STORAGE_BLOCK_TOPICS_KEY = 'nunus_block_topics';
 
 function normalizeBlockTopicsList(arr) {
@@ -46,27 +48,52 @@ let displayedPanel = null;
 
 function parseStoredKey(key) {
   const sep = key.indexOf('|');
-  if (sep === -1) return { hostname: null, title: key };
-  return { hostname: key.slice(0, sep), title: key.slice(sep + 1) };
+  if (sep === -1) return { hostname: null, articleKey: key, legacyTitle: key };
+  return { hostname: key.slice(0, sep), articleKey: key.slice(sep + 1), legacyTitle: key.slice(sep + 1) };
 }
 
-async function readTabSessionKeys(tabId) {
+function normalizeTitleMap(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [key, titles] of Object.entries(raw)) {
+    if (!Array.isArray(titles)) continue;
+    out[key] = [...new Set(titles.map(t => String(t).trim()).filter(Boolean))];
+  }
+  return out;
+}
+
+function titlesForKey(titleMap, key, fallbackTitle) {
+  const titles = Array.isArray(titleMap[key]) ? titleMap[key] : [];
+  if (titles.length) return titles;
+  const fallback = String(fallbackTitle || '').trim();
+  return fallback ? [fallback] : [];
+}
+
+async function readTabSessionState(tabId) {
   try {
     const [r] = await ext.scripting.executeScript({
       target: { tabId },
-      func: (k) => {
+      func: (sessionKey, sessionTitlesKey) => {
         try {
-          const raw = sessionStorage.getItem(k);
-          return raw ? JSON.parse(raw) : [];
+          const keysRaw = sessionStorage.getItem(sessionKey);
+          const titlesRaw = sessionStorage.getItem(sessionTitlesKey);
+          return {
+            keys: keysRaw ? JSON.parse(keysRaw) : [],
+            titleMap: titlesRaw ? JSON.parse(titlesRaw) : {}
+          };
         } catch (_) {
-          return [];
+          return { keys: [], titleMap: {} };
         }
       },
-      args: [SESSION_KEY]
+      args: [SESSION_KEY, SESSION_TITLES_KEY]
     });
-    return Array.isArray(r?.result) ? r.result : [];
+    const result = r?.result || {};
+    return {
+      keys: Array.isArray(result.keys) ? result.keys : [],
+      titleMap: normalizeTitleMap(result.titleMap)
+    };
   } catch (_) {
-    return [];
+    return { keys: [], titleMap: {} };
   }
 }
 
@@ -74,13 +101,14 @@ async function clearTabSessionKeys(tabId) {
   try {
     await ext.scripting.executeScript({
       target: { tabId },
-      func: (sessionKey, sessionUrlKey) => {
+      func: (sessionKey, sessionTitlesKey, legacySessionUrlKey) => {
         try {
           sessionStorage.removeItem(sessionKey);
-          sessionStorage.removeItem(sessionUrlKey);
+          sessionStorage.removeItem(sessionTitlesKey);
+          sessionStorage.removeItem(legacySessionUrlKey);
         } catch (_) {}
       },
-      args: [SESSION_KEY, SESSION_URL_KEY]
+      args: [SESSION_KEY, SESSION_TITLES_KEY, LEGACY_SESSION_URL_KEY]
     });
   } catch (_) {}
 }
@@ -273,30 +301,37 @@ async function showViewedArticles(options = {}) {
 
   resultsEl.classList.add('expanded');
 
-  const local = await ext.storage.local.get([STORAGE_KEY]);
+  const local = await ext.storage.local.get({ [STORAGE_KEY]: [], [STORAGE_TITLES_KEY]: {} });
   const rawKeys = Array.isArray(local[STORAGE_KEY]) ? local[STORAGE_KEY] : [];
+  const titleMap = normalizeTitleMap(local[STORAGE_TITLES_KEY]);
 
-  // UI only: omit titles that still appear under Newly Viewed (this tab), so the two
-  // popup lists never duplicate the same story for the user.
-  const sessionKeys = tabId != null ? await readTabSessionKeys(tabId) : [];
-  const newlyTitlesThisTab = new Set();
-  for (const key of sessionKeys) {
-    const { hostname: h, title } = parseStoredKey(key);
-    if (h === hostname && title) {
-      newlyTitlesThisTab.add(title);
+  // UI only: omit URL keys that still appear under Newly Viewed (this tab), so the
+  // two popup lists never duplicate the same story for the user.
+  const sessionState = tabId != null
+    ? await readTabSessionState(tabId)
+    : { keys: [], titleMap: {} };
+  const newlyKeysThisTab = new Set();
+  for (const key of sessionState.keys) {
+    const { hostname: h } = parseStoredKey(key);
+    if (h === hostname) {
+      newlyKeysThisTab.add(key);
     }
   }
 
-  // Newest-added storage keys first; one row per title (latest key wins if duplicated).
+  // Newest-added storage keys first; one row per observed title.
   const viewedTitles = [];
   const seenViewedTitle = new Set();
   for (let i = rawKeys.length - 1; i >= 0; i--) {
     const key = rawKeys[i];
-    const { hostname: h, title } = parseStoredKey(key);
-    if (h !== hostname || !title || newlyTitlesThisTab.has(title)) continue;
-    if (seenViewedTitle.has(title)) continue;
-    seenViewedTitle.add(title);
-    viewedTitles.push(title);
+    const { hostname: h, legacyTitle } = parseStoredKey(key);
+    if (h !== hostname || newlyKeysThisTab.has(key)) continue;
+    const titles = titlesForKey(titleMap, key, legacyTitle);
+    for (let j = titles.length - 1; j >= 0; j--) {
+      const title = titles[j];
+      if (seenViewedTitle.has(title)) continue;
+      seenViewedTitle.add(title);
+      viewedTitles.push(title);
+    }
   }
 
   mountArticleListPanel(resultsEl, viewedTitles, {
@@ -336,17 +371,23 @@ async function showNewlyViewedArticles(options = {}) {
 
   resultsEl.classList.add('expanded');
 
-  const sessionKeys = tabId != null ? await readTabSessionKeys(tabId) : [];
-  // Newest session keys first; one row per title (latest key wins if duplicated).
+  const sessionState = tabId != null
+    ? await readTabSessionState(tabId)
+    : { keys: [], titleMap: {} };
+  // Newest session keys first; one row per observed title.
   const newlyTitles = [];
   const seenNewTitle = new Set();
-  for (let i = sessionKeys.length - 1; i >= 0; i--) {
-    const key = sessionKeys[i];
-    const { hostname: h, title } = parseStoredKey(key);
-    if (h !== hostname || !title) continue;
-    if (seenNewTitle.has(title)) continue;
-    seenNewTitle.add(title);
-    newlyTitles.push(title);
+  for (let i = sessionState.keys.length - 1; i >= 0; i--) {
+    const key = sessionState.keys[i];
+    const { hostname: h, legacyTitle } = parseStoredKey(key);
+    if (h !== hostname) continue;
+    const titles = titlesForKey(sessionState.titleMap, key, legacyTitle);
+    for (let j = titles.length - 1; j >= 0; j--) {
+      const title = titles[j];
+      if (seenNewTitle.has(title)) continue;
+      seenNewTitle.add(title);
+      newlyTitles.push(title);
+    }
   }
 
   mountArticleListPanel(resultsEl, newlyTitles, {
@@ -363,7 +404,7 @@ document.getElementById('viewedResults').addEventListener('click', async e => {
   const status = document.getElementById('status');
 
   if (e.target.id === 'clearViewedBtn') {
-    await ext.storage.local.set({ [STORAGE_KEY]: [] });
+    await ext.storage.local.set({ [STORAGE_KEY]: [], [STORAGE_TITLES_KEY]: {} });
     status.textContent = 'Viewed articles cleared.';
     if (displayedPanel === 'viewed') {
       await showViewedArticles({ skipToggle: true });
