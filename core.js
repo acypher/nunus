@@ -419,11 +419,20 @@ function maxScrollY() {
 function registerSkipGrayScroll(site) {
   if (typeof site.isHomepage !== 'function') return;
 
+  /**
+   * Track the target of the most recently requested smooth scroll. When the user
+   * presses option-down while the previous animation is still in flight,
+   * window.scrollY is mid-animation and produces a "minScrollY" threshold that is
+   * too low, causing articles just below the intended destination to be skipped.
+   * Using the pending target avoids that over-shoot.
+   */
+  let pendingScrollTarget = null;
+
   document.addEventListener(
     'keydown',
     e => {
-      if (!e.altKey || e.key !== 'ArrowDown' || e.metaKey || e.ctrlKey) return;
-      if (e.shiftKey) return;
+      if (!e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
       if (!site.isHomepage()) return;
 
       const roots = flattenArticleRoots(site.findArticles());
@@ -433,24 +442,60 @@ function registerSkipGrayScroll(site) {
       e.preventDefault();
       e.stopPropagation();
 
-      const vh = window.innerHeight;
-      const minScrollY = window.scrollY + vh;
       const cap = maxScrollY();
 
-      for (const el of roots) {
-        if (!el.isConnected) continue;
-        const docTop = el.getBoundingClientRect().top + window.scrollY;
-        if (docTop + 0.5 < minScrollY) continue;
-        if (el.dataset.nunusTopicBlocked === 'true') continue;
-        if (el.dataset.nunusViewed === 'true') continue;
-        window.scrollTo({
-          top: Math.min(docTop, cap),
-          behavior: 'smooth'
-        });
-        return;
-      }
+      if (e.key === 'ArrowDown') {
+        const vh = window.innerHeight;
+        // If a smooth scroll is still animating, prefer the intended destination so
+        // that the "below the fold" threshold is computed from where the page is
+        // heading rather than from the current mid-animation position.
+        const effectiveScrollY =
+          pendingScrollTarget !== null
+            ? Math.max(window.scrollY, pendingScrollTarget)
+            : window.scrollY;
+        const minScrollY = effectiveScrollY + vh;
 
-      window.scrollTo({ top: cap, behavior: 'smooth' });
+        for (const el of roots) {
+          if (!el.isConnected) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.left >= window.innerWidth) continue; // off-screen carousel slide
+          const docTop = rect.top + window.scrollY;
+          if (docTop + 0.5 < minScrollY) continue;
+          if (el.dataset.nunusTopicBlocked === 'true') continue;
+          if (el.dataset.nunusViewed === 'true') continue;
+          const target = Math.min(docTop, cap);
+          pendingScrollTarget = target;
+          window.scrollTo({ top: target, behavior: 'smooth' });
+          return;
+        }
+
+        pendingScrollTarget = cap;
+        window.scrollTo({ top: cap, behavior: 'smooth' });
+      } else {
+        // ArrowUp: scroll to the last unviewed article whose top is above the
+        // intended scroll position (accounting for any in-flight animation).
+        const effectiveScrollY =
+          pendingScrollTarget !== null
+            ? Math.min(window.scrollY, pendingScrollTarget)
+            : window.scrollY;
+        const maxDocTop = effectiveScrollY - 1;
+        let target = null;
+
+        for (const el of roots) {
+          if (!el.isConnected) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.left >= window.innerWidth) continue; // off-screen carousel slide
+          const docTop = rect.top + window.scrollY;
+          if (docTop > maxDocTop) break;
+          if (el.dataset.nunusTopicBlocked === 'true') continue;
+          if (el.dataset.nunusViewed === 'true') continue;
+          target = docTop;
+        }
+
+        const scrollTarget = target !== null ? target : 0;
+        pendingScrollTarget = scrollTarget;
+        window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+      }
     },
     true
   );
