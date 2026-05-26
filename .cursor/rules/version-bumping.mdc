@@ -13,3 +13,13 @@ When bumping the Nunus version number, always update **all three** locations:
 3. **`safari/scripts/gen_pbxproj.py`** — all `MARKETING_VERSION` entries
 
 All three must stay in sync.
+
+Each release also increments **`CURRENT_PROJECT_VERSION`** in `project.pbxproj` and `gen_pbxproj.py` (Apple build number).
+
+## Release levels
+
+- **MAJOR** — newly supported publication in `manifest.json`, or breaking changes
+- **MINOR** — improvements within publications already shipped (default `./scripts/release.sh` bump)
+- **PATCH** — bug fixes only (not used by release automation today)
+
+Prefer **`./scripts/release.sh "message"`** (minor) or **`./scripts/release.sh --major "message"`** when adding a publication to `manifest.json`.

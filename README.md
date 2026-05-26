@@ -36,11 +36,11 @@ Install **Nunus** from the official extension listings (normal “add extension�
 
 Uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 
-- **MAJOR**: Breaking changes (removed sites, incompatible storage format)
-- **MINOR**: New features (new sites, new behavior)
-- **PATCH**: Bug fixes, small improvements
+- **MAJOR**: A newly supported publication (e.g. adding The Guardian when Nunus was NYTimes-only), or breaking changes (removed sites, incompatible storage format)
+- **MINOR**: Improvements within publications already shipped (better detection, new behavior on NYTimes)
+- **PATCH**: Bug fixes and small polish
 
-Increment the version in `manifest.json` when making changes.
+Use `./scripts/release.sh --major "…"` when enabling a new publication in `manifest.json`. The default release bump is **minor** (NYTimes-only improvements).
 
 ## Packaging (Chrome + Firefox)
 
@@ -50,15 +50,47 @@ Increment the version in `manifest.json` when making changes.
 
 Both artifacts exclude `safari/`, `samples/`, `.git`, IDE folders, `scripts/*`, and `*.iml`.
 
+## Release automation
+
+Full release (minor bump by default, commit, tag, push, build, publish):
+
+```bash
+cp scripts/release.env.example scripts/release.env
+# fill in store credentials, then:
+./scripts/check-release-credentials.sh
+./scripts/release.sh "short summary of this release"
+```
+
+Options:
+
+- `--major` — new publication or breaking change (`1.6.1` → `2.0.0`)
+- `--version X.Y.Z` — set an explicit version
+- `--dry-run` — preview the bump without changing files
+- `--skip-push` — commit and tag locally only
+- `--skip-publish` — stop after building zip/xpi/Safari pkg
+
+Each release also increments Apple `CURRENT_PROJECT_VERSION` in the Safari Xcode project (all targets stay in sync).
+
+**Credentials** live in `scripts/release.env` (gitignored). See `scripts/release.env.example`.
+
+| Store | What to set | Where to get it |
+|---|---|---|
+| Chrome | `CHROME_EXTENSION_ID`, OAuth client + refresh token | [Chrome Web Store API](https://developer.chrome.com/docs/webstore/using-api) — enable API in Google Cloud, OAuth consent, one-time auth for refresh token |
+| Firefox | `AMO_JWT_ISSUER`, `AMO_JWT_SECRET` | [addons.mozilla.org/developers](https://addons.mozilla.org/developers/) → Tools → Manage API Keys |
+| Safari (Mac) | `APPLE_TEAM_ID` + App Store Connect API key **or** `APPLE_ID` + app-specific password | [developer.apple.com/account](https://developer.apple.com/account) — Team ID; API keys under Users and Access → Keys |
+
+Check readiness: `./scripts/check-release-credentials.sh`
+
+**Safari** builds the macOS `NunusHost` scheme only (not iOS). After upload, finish review in App Store Connect.
+
 ## Project structure
 
 - `core.js` - Shared logic (storage, visibility tracking, styling)
 - `content.js` - Entry point; dispatches to site handlers
-- `sites/nyt.js` - New York Times article detection / gray-out
-- `sites/washingtonpost.js` - Washington Post
-- `sites/guardian.js` - The Guardian
+- `sites/nyt.js` - New York Times (shipped in `manifest.json`)
+- `sites/washingtonpost.js`, `sites/guardian.js` - work-in-progress handlers (not in the current manifest)
 
-To add a new site, create `sites/newsite.js` following the pattern of existing handlers, register it in `content.js` and `manifest.json`, and add the site's `findArticles` and `isHomepage` functions.
+To ship a new publication, create or finish `sites/newsite.js`, register it in `content.js` and `manifest.json` (host permissions, content script matches, and script list), and release with **`--major`**.
 
 ## Permissions
 

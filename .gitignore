@@ -1,6 +1,11 @@
 .DS_Store
 .idea/
 
+# Release credentials and local keys (never commit)
+scripts/release.env
+scripts/keys/
+*.p8
+
 # Xcode per-user state (not shared)
 **/xcuserdata/
 
