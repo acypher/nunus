@@ -305,6 +305,12 @@
       if (!el.querySelector('.assetWrapper')) continue;
       if (rootHasArticleAnchor(el)) candidates.add(el);
     }
+    // Kyt-style "Weekend Reads" video cards: <section data-tpl="lb"> wrapping
+    // <p data-tpl="h"><a data-tpl="l"> — no story-wrapper anywhere in the subtree.
+    for (const el of queryAll(document, 'section[data-tpl="lb"]')) {
+      if (el.querySelector('.story-wrapper')) continue;
+      if (rootHasArticleAnchor(el)) candidates.add(el);
+    }
 
     // When the main card link is section > a > … > div.story-wrapper[data-tpl="sli"],
     // the anchor pass adds the section and the sli pass adds the inner roots.

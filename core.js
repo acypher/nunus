@@ -411,22 +411,104 @@ function maxScrollY() {
   return Math.max(0, h - vh);
 }
 
+function scrollNavDocTop(el) {
+  return el.getBoundingClientRect().top + window.scrollY;
+}
+
+/** True when any part of the article root intersects the viewport (not an off-screen carousel slide). */
+function isScrollNavInViewport(el, vw) {
+  const rect = el.getBoundingClientRect();
+  if (rect.left >= vw) return false;
+  if (rect.bottom <= 0 || rect.top >= window.innerHeight) return false;
+  return true;
+}
+
+/** Popup "Viewed Articles": seen on a previous load, gray on page (persistent, not this session). */
+function isViewedArticlesListEntry(viewedArticles, sessionViewed, key) {
+  return viewedArticles.has(key) && !sessionViewed.has(key);
+}
+
+/** root element -> storage key, for scroll-nav lookups. */
+function buildRootToKeyMap(articlesMap, hostname) {
+  const map = new Map();
+  for (const [id, elements] of articlesMap) {
+    const key = getViewedKey(hostname, id);
+    for (const el of elements) map.set(el, key);
+  }
+  return map;
+}
+
+/** Shared eligibility: not gray-from-previous-load, not topic-blocked, on-screen column. */
+function isOptionScrollEligible(el, vw, viewedArticles, sessionViewed, rootToKey) {
+  if (!el.isConnected) return false;
+  if (el.dataset.nunusTopicBlocked === 'true') return false;
+  const rect = el.getBoundingClientRect();
+  if (rect.left >= vw) return false;
+  const key = rootToKey.get(el);
+  if (key && isViewedArticlesListEntry(viewedArticles, sessionViewed, key)) return false;
+  return true;
+}
+
+/** Treat positions within this many px as the same stop (mini-section row). */
+const OPTION_SCROLL_ROW_EPS = 2;
+
 /**
- * Alt/Option + ArrowDown: scroll so the next unviewed article can sit at the top
- * of the viewport (skipping gray cards). If there is no such article below,
- * scroll to the bottom of the page.
+ * Add in-viewport articles to Newly Viewed when they are in neither popup list yet.
  */
-function registerSkipGrayScroll(site) {
+async function markInViewportAsNewlyViewed(site, hostname) {
+  const articles = site.findArticles();
+  const vw = window.innerWidth;
+
+  for (const [id, elements] of articles) {
+    const viewedArticles = await getViewed();
+    const sessionViewed = getTabSessionViewedSet();
+    const key = getViewedKey(hostname, id);
+    if (sessionViewed.has(key)) continue;
+    if (isViewedArticlesListEntry(viewedArticles, sessionViewed, key)) continue;
+
+    const inViewport = [...elements].filter(
+      el =>
+        el.isConnected &&
+        el.dataset.nunusTopicBlocked !== 'true' &&
+        isScrollNavInViewport(el, vw)
+    );
+    if (!inViewport.length) continue;
+
+    sortRootsByDocumentOrder(inViewport);
+    await markAsViewed(site, id, inViewport[0]);
+  }
+}
+
+function registerInViewportNewlyViewed(site, mergeNewArticles) {
   if (typeof site.isHomepage !== 'function') return;
 
-  /**
-   * Track the target of the most recently requested smooth scroll. When the user
-   * presses option-down while the previous animation is still in flight,
-   * window.scrollY is mid-animation and produces a "minScrollY" threshold that is
-   * too low, causing articles just below the intended destination to be skipped.
-   * Using the pending target avoids that over-shoot.
-   */
-  let pendingScrollTarget = null;
+  let scheduled = false;
+  const flush = () => {
+    scheduled = false;
+    const hostname = window.location.hostname;
+    void markInViewportAsNewlyViewed(site, hostname).then(() => {
+      if (typeof mergeNewArticles === 'function') return mergeNewArticles();
+    });
+  };
+  const onScroll = () => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(flush);
+  };
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+}
+
+/**
+ * Option + ArrowDown/Up: stop at the next article not in Viewed Articles (previous
+ * load) whose top is below/above the viewport. Skip gray cards and anything on screen.
+ */
+function registerSkipGrayScroll(site, mergeNewArticles) {
+  if (typeof site.isHomepage !== 'function') return;
+
+  /** Document Y of the last option-scroll stop (avoids re-targeting the same row). */
+  let lastOptionStopDocTop = null;
+  let lastOptionDirection = null;
 
   document.addEventListener(
     'keydown',
@@ -435,67 +517,77 @@ function registerSkipGrayScroll(site) {
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
       if (!site.isHomepage()) return;
 
-      const roots = flattenArticleRoots(site.findArticles());
-      if (roots.length === 0) return;
-      sortRootsByVisualPosition(roots);
-
       e.preventDefault();
       e.stopPropagation();
 
-      const cap = maxScrollY();
+      void (async () => {
+        const hostname = window.location.hostname;
+        await markInViewportAsNewlyViewed(site, hostname);
+        if (typeof mergeNewArticles === 'function') await mergeNewArticles();
 
-      if (e.key === 'ArrowDown') {
+        const viewedArticles = await getViewed();
+        const articlesMap = site.findArticles();
+        const sessionViewed = getTabSessionViewedSet();
+        const rootToKey = buildRootToKeyMap(articlesMap, hostname);
+        const roots = flattenArticleRoots(articlesMap);
+        if (roots.length === 0) return;
+        sortRootsByVisualPosition(roots);
+
+        const cap = maxScrollY();
+        const vw = window.innerWidth;
         const vh = window.innerHeight;
-        // If a smooth scroll is still animating, prefer the intended destination so
-        // that the "below the fold" threshold is computed from where the page is
-        // heading rather than from the current mid-animation position.
-        const effectiveScrollY =
-          pendingScrollTarget !== null
-            ? Math.max(window.scrollY, pendingScrollTarget)
-            : window.scrollY;
-        const minScrollY = effectiveScrollY + vh;
+        const scrollY = window.scrollY;
 
-        for (const el of roots) {
-          if (!el.isConnected) continue;
-          const rect = el.getBoundingClientRect();
-          if (rect.left >= window.innerWidth) continue; // off-screen carousel slide
-          const docTop = rect.top + window.scrollY;
-          if (docTop + 0.5 < minScrollY) continue;
-          if (el.dataset.nunusTopicBlocked === 'true') continue;
-          if (el.dataset.nunusViewed === 'true') continue;
-          const target = Math.min(docTop, cap);
-          pendingScrollTarget = target;
-          window.scrollTo({ top: target, behavior: 'smooth' });
-          return;
+        if (e.key === 'ArrowDown') {
+          const minScrollY = scrollY + vh;
+
+          for (const el of roots) {
+            if (!isOptionScrollEligible(el, vw, viewedArticles, sessionViewed, rootToKey))
+              continue;
+            const docTop = scrollNavDocTop(el);
+            if (docTop + 0.5 < minScrollY) continue;
+            if (
+              lastOptionDirection === 'down' &&
+              lastOptionStopDocTop !== null &&
+              docTop <= lastOptionStopDocTop + OPTION_SCROLL_ROW_EPS
+            ) {
+              continue;
+            }
+            const target = Math.min(docTop, cap);
+            lastOptionStopDocTop = target;
+            lastOptionDirection = 'down';
+            window.scrollTo({ top: target, behavior: 'smooth' });
+            return;
+          }
+
+          lastOptionStopDocTop = cap;
+          lastOptionDirection = 'down';
+          window.scrollTo({ top: cap, behavior: 'smooth' });
+        } else {
+          const maxDocTop = scrollY - 1;
+          let target = null;
+
+          for (const el of roots) {
+            if (!isOptionScrollEligible(el, vw, viewedArticles, sessionViewed, rootToKey))
+              continue;
+            const docTop = scrollNavDocTop(el);
+            if (docTop > maxDocTop) break;
+            if (
+              lastOptionDirection === 'up' &&
+              lastOptionStopDocTop !== null &&
+              docTop >= lastOptionStopDocTop - OPTION_SCROLL_ROW_EPS
+            ) {
+              continue;
+            }
+            target = docTop;
+          }
+
+          const scrollTarget = target !== null ? target : 0;
+          lastOptionStopDocTop = scrollTarget;
+          lastOptionDirection = 'up';
+          window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
         }
-
-        pendingScrollTarget = cap;
-        window.scrollTo({ top: cap, behavior: 'smooth' });
-      } else {
-        // ArrowUp: scroll to the last unviewed article whose top is above the
-        // intended scroll position (accounting for any in-flight animation).
-        const effectiveScrollY =
-          pendingScrollTarget !== null
-            ? Math.min(window.scrollY, pendingScrollTarget)
-            : window.scrollY;
-        const maxDocTop = effectiveScrollY - 1;
-        let target = null;
-
-        for (const el of roots) {
-          if (!el.isConnected) continue;
-          const rect = el.getBoundingClientRect();
-          if (rect.left >= window.innerWidth) continue; // off-screen carousel slide
-          const docTop = rect.top + window.scrollY;
-          if (docTop > maxDocTop) break;
-          if (el.dataset.nunusTopicBlocked === 'true') continue;
-          if (el.dataset.nunusViewed === 'true') continue;
-          target = docTop;
-        }
-
-        const scrollTarget = target !== null ? target : 0;
-        pendingScrollTarget = scrollTarget;
-        window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
-      }
+      })();
     },
     true
   );
@@ -641,7 +733,10 @@ async function run(site) {
   // One safety-net rescan for lazy-loaded content
   setTimeout(mergeNewArticles, 2000);
 
-  registerSkipGrayScroll(site);
+  void markInViewportAsNewlyViewed(site, hostname).then(mergeNewArticles);
+
+  registerInViewportNewlyViewed(site, mergeNewArticles);
+  registerSkipGrayScroll(site, mergeNewArticles);
 }
 
 window.NunusRun = run;

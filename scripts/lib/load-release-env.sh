@@ -16,3 +16,4 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 export RELEASE_GIT_REMOTE="${RELEASE_GIT_REMOTE:-origin}"
+export RELEASE_GIT_BRANCH="${RELEASE_GIT_BRANCH:-main}"
