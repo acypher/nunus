@@ -52,14 +52,27 @@ Both artifacts exclude `safari/`, `samples/`, `.git`, IDE folders, `scripts/*`, 
 
 ## Release automation
 
-Full release (minor bump by default, commit, tag, push, build, publish):
+### Version commit to GitHub (usual step)
+
+```bash
+./scripts/version-commit.sh --package "short summary of this release"
+```
+
+Or in Cursor chat: **`/version`** then your summary.
+
+This bumps the version (minor by default), commits, tags `vX.Y.Z`, pushes to GitHub, and writes **`../nunus-X.Y.Z.zip`** and **`.xpi`**. From a **`cursor/*` branch**, it merges into **`main`** and pushes `main` + the tag. No Safari build or store uploads.
+
+Options: `--major`, `--version X.Y.Z`, `--dry-run`, `--skip-push` (omit `--package` for git-only)
+
+### Full release (build + store publish)
 
 ```bash
 cp scripts/release.env.example scripts/release.env
-# fill in store credentials, then:
 ./scripts/check-release-credentials.sh
 ./scripts/release.sh "short summary of this release"
 ```
+
+`release.sh` runs `version-commit.sh --package`, then builds Safari and publishes when credentials are configured.
 
 Options:
 

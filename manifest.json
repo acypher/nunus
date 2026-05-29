@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Gray out NYTimes homepage headlines you have seen.",
   "browser_specific_settings": {
     "gecko": {
       "id": "nunus@nunus.extension",
       "data_collection_permissions": {
-        "required": ["none"]
+        "required": [
+          "none"
+        ]
       },
       "strict_min_version": "128.0"
     }
@@ -16,7 +18,11 @@
     "48": "icons/letterNu48.png",
     "96": "icons/letterNu96.png"
   },
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
   "host_permissions": [
     "https://www.nytimes.com/",
     "https://www.nytimes.com/?*",
