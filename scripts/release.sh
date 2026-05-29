@@ -9,6 +9,10 @@
 # For GitHub + zip/xpi (no Safari or stores), use:
 #   ./scripts/version-commit.sh --package "summary"
 #   or the Cursor command: /version
+#
+# To publish the current version to all stores (no version bump):
+#   ./scripts/publish-stores.sh
+#   or the Cursor command: /publish
 
 set -euo pipefail
 
@@ -66,56 +70,15 @@ VC_ARGS+=(--package)
 "$SCRIPT_DIR/version-commit.sh" "${VC_ARGS[@]}" "$MESSAGE"
 VERSION="$(python3 -c "import json; print(json.load(open('$ROOT/manifest.json'))['version'])")"
 TAG="v${VERSION}"
-PARENT="$(cd "$ROOT/.." && pwd)"
-ZIP="$PARENT/nunus-${VERSION}.zip"
-XPI="$PARENT/nunus-${VERSION}.xpi"
-
-echo
-echo "== Build Safari macOS archive =="
-PKG="$("$SCRIPT_DIR/build-safari-mac.sh" | tail -1)"
 
 if [[ "$SKIP_PUBLISH" -eq 1 ]]; then
   echo
-  echo "Publish skipped (--skip-publish)."
-  echo "Artifacts:"
-  echo "  Chrome: $ZIP"
-  echo "  Firefox source xpi: $XPI"
-  echo "  Safari: $PKG"
+  echo "== Build artifacts only (--skip-publish) =="
+  "$SCRIPT_DIR/publish-stores.sh" --build-only
   exit 0
 fi
 
-echo
-echo "== Check store credentials =="
-if ! "$SCRIPT_DIR/check-release-credentials.sh"; then
-  echo
-  echo "Stopped before publishing. Artifacts are ready:"
-  echo "  Chrome: $ZIP"
-  echo "  Firefox: $XPI"
-  echo "  Safari: $PKG"
-  echo
-  echo "Fill in scripts/release.env, then publish manually:"
-  echo "  python3 scripts/publish-chrome.py \"$ZIP\""
-  echo "  scripts/publish-firefox.sh"
-  echo "  scripts/publish-safari-mac.sh \"$PKG\""
-  exit 1
-fi
+"$SCRIPT_DIR/publish-stores.sh"
 
 echo
-echo "== Publish Chrome =="
-python3 "$SCRIPT_DIR/publish-chrome.py" "$ZIP"
-
-echo
-echo "== Publish Firefox =="
-"$SCRIPT_DIR/publish-firefox.sh"
-
-echo
-echo "== Publish Safari (Mac App Store) =="
-"$SCRIPT_DIR/publish-safari-mac.sh" "$PKG"
-
-echo
-echo "Release ${VERSION} complete."
-echo "  Git tag: ${TAG}"
-echo "  Chrome: ${ZIP}"
-echo "  Firefox: signed via web-ext"
-echo "  Safari: ${PKG} uploaded to App Store Connect"
-echo "Review Safari submission in App Store Connect before release."
+echo "Release ${VERSION} complete (git tag: ${TAG})."

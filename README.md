@@ -62,6 +62,21 @@ Or in Cursor chat: **`/version`** then your summary.
 
 This bumps the version (minor by default), commits, tags `vX.Y.Z`, pushes to GitHub, and writes **`../nunus-X.Y.Z.zip`** and **`.xpi`**. From a **`cursor/*` branch**, it merges into **`main`** and pushes `main` + the tag. No Safari build or store uploads.
 
+### Publish to all stores
+
+In Cursor chat: **`/publish`** or say **Publish Nunus**.
+
+Or from the repo:
+
+```bash
+./scripts/check-release-credentials.sh
+./scripts/publish-stores.sh
+```
+
+Uploads the **current** `manifest.json` version to Chrome, Firefox, and Safari (Mac App Store). No version bump. See `.cursor/skills/publish-nunus/SKILL.md`.
+
+Options: `--build-only`, `--dry-run`
+
 Options: `--major`, `--version X.Y.Z`, `--dry-run`, `--skip-push` (omit `--package` for git-only)
 
 ### Full release (build + store publish)
