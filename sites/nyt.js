@@ -62,8 +62,13 @@
     // Wirecutter / Athletic promos use nyt://promo/ and paths without /YYYY/MM/DD/.
     if (u.pathname.startsWith('/wirecutter/')) return true;
     if (u.pathname.startsWith('/athletic/')) return true;
-    // Homepage “Cooking” promos link to cooking.nytimes.com/recipes/… (no /YYYY/MM/DD/).
-    if (u.hostname === 'cooking.nytimes.com' && u.pathname.startsWith('/recipes/')) return true;
+    // Homepage “Cooking” promos link to cooking.nytimes.com/recipes/… or /article/… (no /YYYY/MM/DD/).
+    if (
+      u.hostname === 'cooking.nytimes.com' &&
+      /^\/(?:recipes|article)\//.test(u.pathname)
+    ) {
+      return true;
+    }
     return false;
   }
 

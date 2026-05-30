@@ -14,6 +14,65 @@
 /** WebExtension namespace: prefer `browser` when present, else `chrome`. */
 const ext = globalThis.browser ?? globalThis.chrome;
 
+function isExtensionContextValid() {
+  try {
+    return Boolean(ext?.runtime?.id);
+  } catch (_) {
+    return false;
+  }
+}
+
+function isContextInvalidatedError(err) {
+  const msg = err && (err.message || String(err));
+  return typeof msg === 'string' && msg.includes('Extension context invalidated');
+}
+
+async function storageLocalGet(keysOrDefaults) {
+  if (!isExtensionContextValid()) {
+    if (Array.isArray(keysOrDefaults)) {
+      const out = {};
+      for (const k of keysOrDefaults) out[k] = undefined;
+      return out;
+    }
+    return { ...keysOrDefaults };
+  }
+  try {
+    return await ext.storage.local.get(keysOrDefaults);
+  } catch (err) {
+    if (isContextInvalidatedError(err)) {
+      if (Array.isArray(keysOrDefaults)) {
+        const out = {};
+        for (const k of keysOrDefaults) out[k] = undefined;
+        return out;
+      }
+      return { ...keysOrDefaults };
+    }
+    throw err;
+  }
+}
+
+async function storageLocalSet(obj) {
+  if (!isExtensionContextValid()) return false;
+  try {
+    await ext.storage.local.set(obj);
+    return true;
+  } catch (err) {
+    if (isContextInvalidatedError(err)) return false;
+    throw err;
+  }
+}
+
+async function storageLocalRemove(keys) {
+  if (!isExtensionContextValid()) return false;
+  try {
+    await ext.storage.local.remove(keys);
+    return true;
+  } catch (err) {
+    if (isContextInvalidatedError(err)) return false;
+    throw err;
+  }
+}
+
 const VIEW_THRESHOLD_MS = 3000;
 const CHECK_INTERVAL_MS = 500;
 /** Min visible width/height (px) of the title rect inside the viewport. */
@@ -109,15 +168,15 @@ let _viewedCache = null;
 let _titleCache = null;
 
 async function loadViewedArticles() {
-  const result = await ext.storage.local.get([STORAGE_KEY, LEGACY_STORAGE_KEY]);
+  const result = await storageLocalGet([STORAGE_KEY, LEGACY_STORAGE_KEY]);
   let current = new Set(result[STORAGE_KEY] || []);
   const legacy = result[LEGACY_STORAGE_KEY] || [];
 
   // Migrate legacy storage
   if (legacy.length > 0) {
     legacy.forEach(id => current.add(id));
-    await ext.storage.local.remove(LEGACY_STORAGE_KEY);
-    await ext.storage.local.set({ [STORAGE_KEY]: [...current] });
+    await storageLocalRemove(LEGACY_STORAGE_KEY);
+    await storageLocalSet({ [STORAGE_KEY]: [...current] });
   }
 
   return current;
@@ -129,7 +188,7 @@ async function getViewed() {
 }
 
 async function loadViewedArticleTitles() {
-  const result = await ext.storage.local.get({ [STORAGE_TITLES_KEY]: {} });
+  const result = await storageLocalGet({ [STORAGE_TITLES_KEY]: {} });
   const raw = result[STORAGE_TITLES_KEY];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const out = {};
@@ -174,7 +233,7 @@ function getArticleDisplayTitle(site, articleRoot, fallback = '') {
 }
 
 async function saveViewedState(viewed, sessionViewed) {
-  await ext.storage.local.set({ [STORAGE_KEY]: [...viewed] });
+  await storageLocalSet({ [STORAGE_KEY]: [...viewed] });
   saveTabSessionViewedSet(sessionViewed);
 }
 
@@ -202,7 +261,7 @@ async function rememberArticleTitles(site, articleId, elements, sessionViewed, h
     localChanged = addTitleToMap(titleMap, key, title) || localChanged;
   }
   if (localChanged) {
-    await ext.storage.local.set({ [STORAGE_TITLES_KEY]: titleMap });
+    await storageLocalSet({ [STORAGE_TITLES_KEY]: titleMap });
   }
 
   if (!sessionViewed.has(key)) return;
@@ -253,7 +312,7 @@ function normalizeBlockTopics(raw) {
 }
 
 async function loadBlockTopics() {
-  const r = await ext.storage.local.get({ [STORAGE_BLOCK_TOPICS_KEY]: [] });
+  const r = await storageLocalGet({ [STORAGE_BLOCK_TOPICS_KEY]: [] });
   return normalizeBlockTopics(r[STORAGE_BLOCK_TOPICS_KEY]);
 }
 
@@ -594,6 +653,8 @@ function registerSkipGrayScroll(site, mergeNewArticles) {
 }
 
 async function run(site) {
+  if (!isExtensionContextValid()) return;
+
   const hostname = window.location.hostname;
   const viewedArticles = await getViewed();
   const sessionViewed = getTabSessionViewedSet();
@@ -620,6 +681,7 @@ async function run(site) {
   });
 
   const mergeNewArticles = async () => {
+    if (!isExtensionContextValid()) return;
     blockTopics = await loadBlockTopics();
     const sessionNow = getTabSessionViewedSet();
     const newArticles = site.findArticles();
@@ -675,6 +737,7 @@ async function run(site) {
   let visibilityCheckRunning = false;
 
   const checkVisibility = async () => {
+    if (!isExtensionContextValid()) return;
     const now = performance.now();
     for (const [id, elements] of articles) {
       if (!trackedIds.has(id)) continue;
@@ -711,6 +774,7 @@ async function run(site) {
   // Poll only when tab is visible. Skip re-entrancy while a run awaits storage so
   // overlapping timers cannot credit extra dwell toward the threshold.
   const checkVisibilityLoop = () => {
+    if (!isExtensionContextValid()) return;
     setTimeout(checkVisibilityLoop, CHECK_INTERVAL_MS);
     if (document.visibilityState === 'hidden' || visibilityCheckRunning) return;
     visibilityCheckRunning = true;

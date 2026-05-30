@@ -104,7 +104,7 @@ function nunusInstallNytDebugOverlay(site) {
   }
 
   if (site && typeof window.NunusRun === 'function') {
-    window.NunusRun(site);
+    void window.NunusRun(site).catch(() => {});
   }
 
   if (host.includes('nytimes.com') && site && nunusNytDebugEnabled()) {
