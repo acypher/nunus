@@ -3,6 +3,8 @@
 
 # Release credentials and local keys (never commit)
 scripts/release.env
+scripts/release.env*
+!scripts/release.env.example
 scripts/keys/
 *.p8
 
