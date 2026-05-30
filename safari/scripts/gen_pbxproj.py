@@ -484,8 +484,10 @@ s = f"""// !$*UTF8*$!
 \t\t\t\tCURRENT_PROJECT_VERSION = 3;
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
+\t\t\t\tINFOPLIST_FILE = Host/Info.plist;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
 \t\t\t\tINFOPLIST_KEY_CFBundleIconFile = AppIcon;
+\t\t\t\tINFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.news";
 \t\t\t\tINFOPLIST_KEY_NSHumanReadableCopyright = "";
 \t\t\t\tLD_RUNPATH_SEARCH_PATHS = (
 \t\t\t\t\t"$(inherited)",
@@ -509,8 +511,10 @@ s = f"""// !$*UTF8*$!
 \t\t\t\tCURRENT_PROJECT_VERSION = 3;
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
+\t\t\t\tINFOPLIST_FILE = Host/Info.plist;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
 \t\t\t\tINFOPLIST_KEY_CFBundleIconFile = AppIcon;
+\t\t\t\tINFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.news";
 \t\t\t\tINFOPLIST_KEY_NSHumanReadableCopyright = "";
 \t\t\t\tLD_RUNPATH_SEARCH_PATHS = (
 \t\t\t\t\t"$(inherited)",

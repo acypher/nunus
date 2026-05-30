@@ -22,23 +22,22 @@ fi
 
 channel="${AMO_CHANNEL:-listed}"
 artifacts_dir="$ROOT/safari/build/firefox-artifacts"
+stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/nunus-firefox-sign.XXXXXX")"
 mkdir -p "$artifacts_dir"
 
+cleanup() {
+  rm -rf "$stage_dir"
+}
+trap cleanup EXIT
+
+"$SCRIPT_DIR/stage-firefox-source.sh" "$stage_dir" "$ROOT"
+
 web-ext sign \
-  --source-dir "$ROOT" \
+  --source-dir "$stage_dir" \
   --api-key "$AMO_JWT_ISSUER" \
   --api-secret "$AMO_JWT_SECRET" \
   --channel "$channel" \
-  --artifacts-dir "$artifacts_dir" \
-  --ignore-files \
-    "safari/**" \
-    "samples/**" \
-    "scripts/**" \
-    ".git/**" \
-    ".cursor/**" \
-    ".idea/**" \
-    "**/.DS_Store" \
-    "**/*.iml"
+  --artifacts-dir "$artifacts_dir"
 
 signed="$(find "$artifacts_dir" -name '*.xpi' | head -1)"
 if [[ -z "$signed" ]]; then

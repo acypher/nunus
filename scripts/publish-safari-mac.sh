@@ -18,7 +18,7 @@ if [[ ! -f "$pkg" ]]; then
   exit 1
 fi
 
-upload_args=(--upload-app --type macos --file "$pkg")
+upload_args=(--upload-package "$pkg")
 
 if [[ -n "${APP_STORE_CONNECT_API_KEY_ID:-}" ]]; then
   for var in APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_PATH; do
@@ -31,9 +31,10 @@ if [[ -n "${APP_STORE_CONNECT_API_KEY_ID:-}" ]]; then
     echo "error: API key file not found: $APP_STORE_CONNECT_API_KEY_PATH" >&2
     exit 1
   fi
-  upload_args+=(--apiKey "$APP_STORE_CONNECT_API_KEY_ID")
-  upload_args+=(--apiIssuer "$APP_STORE_CONNECT_ISSUER_ID")
-  upload_args+=(--apiKeyPath "$APP_STORE_CONNECT_API_KEY_PATH")
+  # Xcode 15+ altool: --api-key, --api-issuer, --p8-file-path
+  upload_args+=(--api-key "$APP_STORE_CONNECT_API_KEY_ID")
+  upload_args+=(--api-issuer "$APP_STORE_CONNECT_ISSUER_ID")
+  upload_args+=(--p8-file-path "$APP_STORE_CONNECT_API_KEY_PATH")
 elif [[ -n "${APPLE_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
   upload_args+=(--username "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD")
 else

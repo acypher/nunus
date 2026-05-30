@@ -16,24 +16,26 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT="${NUNUS_EXTENSION_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 OUT="${NUNUS_XPI:-$ROOT/../nunus.xpi}"
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/nunus-firefox-stage.XXXXXX")"
+
+cleanup() {
+  rm -rf "$STAGE"
+}
+trap cleanup EXIT
 
 cd "$ROOT" || {
   echo "buildNunusFirefox: cannot cd to $ROOT" >&2
   exit 1
 }
 
+"$SCRIPT_DIR/stage-firefox-source.sh" "$STAGE" "$ROOT"
+
 rm -f "$OUT"
 
-zip -r "$OUT" . \
-  -x "*.git*" \
-  -x ".DS_Store" \
-  -x "*/.DS_Store" \
-  -x "safari/*" \
-  -x "samples/*" \
-  -x ".idea/*" \
-  -x ".cursor/*" \
-  -x "scripts/*" \
-  -x "*.iml"
+(
+  cd "$STAGE" || exit 1
+  zip -r "$OUT" .
+)
 
 manifest_at_root() {
   local z="$1"
