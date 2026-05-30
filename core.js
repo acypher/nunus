@@ -623,8 +623,13 @@ function registerSkipGrayScroll(site, mergeNewArticles) {
           lastOptionDirection = 'down';
           window.scrollTo({ top: cap, behavior: 'smooth' });
         } else {
+          // Mirror of ArrowDown: jump to the nearest non-old article whose top is
+          // above the viewport top (its headline was scrolled past, so it hasn't
+          // been read) and place it at the BOTTOM of the viewport so the articles
+          // above it are revealed.
           const maxDocTop = scrollY - 1;
-          let target = null;
+          let targetEl = null;
+          let targetDocTop = null;
 
           for (const el of roots) {
             if (!isOptionScrollEligible(el, vw, viewedArticles, sessionViewed, rootToKey))
@@ -638,13 +643,26 @@ function registerSkipGrayScroll(site, mergeNewArticles) {
             ) {
               continue;
             }
-            target = docTop;
+            targetEl = el;
+            targetDocTop = docTop;
           }
 
-          const scrollTarget = target !== null ? target : 0;
-          lastOptionStopDocTop = scrollTarget;
-          lastOptionDirection = 'up';
-          window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+          if (targetEl === null) {
+            lastOptionStopDocTop = 0;
+            lastOptionDirection = 'up';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else {
+            // For articles taller than the viewport, fall back to aligning the top
+            // so we do not scroll past them.
+            const docBottom = targetEl.getBoundingClientRect().bottom + window.scrollY;
+            const scrollTarget = Math.max(
+              0,
+              Math.min(docBottom - vh, targetDocTop, cap)
+            );
+            lastOptionStopDocTop = targetDocTop;
+            lastOptionDirection = 'up';
+            window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+          }
         }
       })();
     },
