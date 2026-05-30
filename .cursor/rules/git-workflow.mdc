@@ -1,0 +1,16 @@
+---
+description: Solo-developer git workflow for the Nunus repo — commit directly to main
+alwaysApply: true
+---
+
+# Git workflow (solo developer)
+
+The repo owner is the only developer. Keep git simple:
+
+- **Commit directly to `main`.** Do not create feature branches, pull requests, or
+  patch branches. Just change `main`.
+- **Do not create git tags** unless the user explicitly asks.
+- Push to `origin main`.
+
+This applies to all version bumps, fixes, and routine changes. Reserve heavier
+flows (tags, store packaging) for when the user explicitly invokes them.
