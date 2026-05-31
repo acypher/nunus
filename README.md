@@ -1,16 +1,16 @@
-# Nunus
+# Nunus  
 
-**Nunus for NYTimes Browser Extension**
+**Nunus for NYTimes Browser Extension**  
 
-Nunus helps you find what’s new on the New York Times front page since you last checked.
+Nunus helps you find what’s new on the New York Times front page since you last checked.  
 
-**What it does**
+**What it does**  
 
-When you revisit the NYTimes front page, Nunus automatically grays out any article titles you have already seen on the front page, so new stories stand out immediately.
+When you revisit the NYTimes front page, Nunus automatically grays out any article titles you have already seen on the front page, so new stories stand out immediately.  
 
-**How “already seen” is defined**
+**How “already seen” is defined**  
 
-Whether you actually click to view an article is unimportant.  A title counts as seen as soon as the title appears for a few seconds on the front page. Even if the title changes a bit, it will still be marked as seen, as long as it links to the same article. If the same title appears more than once on the page, all later occurrences are grayed out immediately.
+An article title is considered "Seen" if that part of the front page has appeared on your screen for a few seconds. It is not about clicking to open the article's full page.   
 
 **Keyboard shortcut**
 
@@ -19,7 +19,7 @@ Press Option + ↓ (Mac) to jump straight to the next unseen title on the page.
 **Typical use case**
 
 You read the Times over breakfast. As a news junkie, you check back in the afternoon. Most of the stories are the same — but several new ones have been added during the day. With Nunus, everything you have already seen is grayed out, so the new stories are immediately visible without any scanning.  
-This is especially useful on the weekend, when the Times frequently recycles articles from earlier in the week or even from previous weeks. Nunus grays those out too, so you only spend time on what is actually new to you.
+This is especially useful on the weekend, when the Times frequently recycles articles from earlier in the week or even from previous weeks. Nunus grays those out, so you only spend time on what is actually new to you.  The Times sometimes tweaks the title of an article, but as long as it links to the same article, that counts as having been seen.
 
 ## Installation
 
@@ -37,7 +37,7 @@ Install **Nunus** from the official extension listings (normal “add extension�
 Uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 
 - **MAJOR**: A newly supported publication (e.g. adding The Guardian when Nunus was NYTimes-only), or breaking changes (removed sites, incompatible storage format)
-- **MINOR**: Improvements within publications already shipped (better detection, new behavior on NYTimes)
+- **MINOR**: Improvements within publications already shipped (e.g. better detection, new behavior on NYTimes)
 - **PATCH**: Bug fixes and small polish
 
 Use `./scripts/release.sh --major "…"` when enabling a new publication in `manifest.json`. The default release bump is **minor** (NYTimes-only improvements).

@@ -1,7 +1,7 @@
 ---
 name: ship
 description: >-
-  Bump the Nunus version (patch), commit all pending changes to main, and push.
+  Bump the Nunus version (minor), commit all pending changes to main, and push.
   Use when the user says "ship", "ship it", or "bump the version number, commit
   and push". This does NOT upload to the Chrome/Firefox/Safari stores — that is
   the separate "publish" flow.
@@ -20,21 +20,23 @@ Chrome, Firefox, and Safari stores.
 1. **Summary**: if the user didn't give one, ask for a short release summary
    (used in the commit message `version X.Y.Z: <summary>`).
 
-2. **Bump level**: default is **patch** (e.g. `1.6.4 → 1.6.5`). Use `--major`
-   only if the user asks or `manifest.json` gains a new publication.
+2. **Bump level**: default is **minor** (e.g. `1.6.5 → 1.7.0`). Use `--major`
+   only if the user asks or `manifest.json` gains a new publication. Use
+   `--version X.Y.Z` only when the user asks for an explicit version (e.g. patch).
 
 3. **Bump all version files** with the repo tool (keeps `manifest.json`, both
    Safari `MARKETING_VERSION` entries, and the Safari build number
-   `CURRENT_PROJECT_VERSION` in sync). Compute the patch version explicitly since
-   the tool defaults to a minor bump:
+   `CURRENT_PROJECT_VERSION` in sync):
 
 ```bash
-CUR=$(python3 -c "import json;print(json.load(open('manifest.json'))['version'])")
-NEW=$(python3 -c "v='$CUR'.split('.');print(f\"{v[0]}.{v[1]}.{int(v[2])+1}\")")
-python3 scripts/bump-version.py --version "$NEW"
+python3 scripts/bump-version.py
 ```
 
-   For a major bump instead: `python3 scripts/bump-version.py --major`.
+   For a major bump: `python3 scripts/bump-version.py --major`.
+
+   For an explicit version: `python3 scripts/bump-version.py --version X.Y.Z`.
+
+   Read the script output for `$NEW` before committing (`next: X.Y.Z`).
 
 4. **Commit everything** (the code changes plus the version bump) in one commit
    on `main`, then push:
