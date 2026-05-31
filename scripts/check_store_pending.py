@@ -176,7 +176,7 @@ def check_chrome() -> StoreStatus:
         submitted_version = None
         channels = submitted.get("distributionChannels") or []
         if channels:
-            submitted_version = channels[0].get("version")
+            submitted_version = channels[0].get("crxVersion") or channels[0].get("version")
 
         if submitted_state in CHROME_PENDING_STATES:
             version_note = f" ({submitted_version})" if submitted_version else ""
@@ -192,7 +192,7 @@ def check_chrome() -> StoreStatus:
         published_version = None
         pub_channels = published.get("distributionChannels") or []
         if pub_channels:
-            published_version = pub_channels[0].get("version")
+            published_version = pub_channels[0].get("crxVersion") or pub_channels[0].get("version")
 
         live = published_version or "unknown"
         return StoreStatus(

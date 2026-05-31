@@ -122,3 +122,5 @@ Report:
 Optional What's New text: set `APP_STORE_WHATS_NEW` or `docs/app-store-whats-new.txt` in `release.env` / repo.
 
 Re-run `./scripts/check-store-pending.sh` after publish; expect **PENDING** on all three while reviews are in progress.
+
+After reviews complete, verify live availability with `./scripts/check-store-live.sh` (see **publish-check** skill).
