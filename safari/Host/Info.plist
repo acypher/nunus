@@ -6,5 +6,7 @@
 	<string>AppIcon</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.news</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

@@ -105,7 +105,7 @@ def main() -> int:
     print(f"App Store Connect app id: {app_id}")
 
     if args.skip_wait:
-        builds = client.get(f"/v1/apps/{app_id}/builds?limit=20&sort=-uploadedDate")
+        builds = client.get(f"/v1/apps/{app_id}/builds?limit=20")
         build_row = None
         for row in builds.get("data") or []:
             attrs = row.get("attributes") or {}
@@ -135,6 +135,9 @@ def main() -> int:
 
     client.attach_build(version_id, build_id)
     print(f"Attached build {build_number} to version {version_string}")
+
+    client.set_build_encryption_compliance(build_id, uses_non_exempt_encryption=False)
+    print("Set export compliance (usesNonExemptEncryption=false)")
 
     client.set_whats_new(version_id, whats_new, locale)
     print(f"Updated What's New ({locale})")

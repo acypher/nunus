@@ -172,6 +172,21 @@ class AppStoreConnectClient:
             {"data": {"type": "builds", "id": build_id}},
         )
 
+    def set_build_encryption_compliance(self, build_id: str, *, uses_non_exempt_encryption: bool = False) -> None:
+        """Declare export compliance on a processed build (required before App Review)."""
+        self.patch(
+            f"/v1/builds/{build_id}",
+            {
+                "data": {
+                    "type": "builds",
+                    "id": build_id,
+                    "attributes": {
+                        "usesNonExemptEncryption": uses_non_exempt_encryption,
+                    },
+                }
+            },
+        )
+
     def build_pre_release_version(self, build_id: str) -> str:
         payload = self.get(f"/v1/builds/{build_id}/preReleaseVersion")
         return (payload.get("data") or {}).get("attributes", {}).get("version", "")
@@ -186,7 +201,7 @@ class AppStoreConnectClient:
     ) -> dict[str, Any]:
         deadline = time.time() + timeout_seconds
         while time.time() < deadline:
-            payload = self.get(f"/v1/apps/{app_id}/builds?limit=20&sort=-uploadedDate")
+            payload = self.get(f"/v1/apps/{app_id}/builds?limit=20")
             for row in payload.get("data") or []:
                 attrs = row.get("attributes") or {}
                 state = attrs.get("processingState")
