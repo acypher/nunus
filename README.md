@@ -66,14 +66,24 @@ This bumps the version (minor by default), commits, tags `vX.Y.Z`, pushes to Git
 
 In Cursor chat: **`/publish`** or say **Publish Nunus**.
 
-Or from the repo:
+**Before publish** (required):
 
 ```bash
 ./scripts/check-release-credentials.sh
+./scripts/check-store-pending.sh
+```
+
+Both must pass. The pending check exits **0 (READY)** only when Chrome, Firefox, and Safari have no submission in review or processing. Set `CHROME_PUBLISHER_ID` in `scripts/release.env` for automatic Chrome review detection (Chrome Developer Dashboard → Publisher → Settings).
+
+Then:
+
+```bash
 ./scripts/publish-stores.sh
 ```
 
 Uploads the **current** `manifest.json` version to Chrome, Firefox, and Safari (Mac App Store). No version bump. See `.cursor/skills/publish-nunus/SKILL.md`.
+
+**After publish:** Chrome and Firefox are submitted for review automatically. **Safari** upload and submit-for-review run via App Store Connect API (`submit-safari-appstore.sh` after upload). Monitor App Store Connect if submit fails (metadata/export compliance).
 
 Options: `--build-only`, `--dry-run`
 
@@ -108,6 +118,8 @@ Each release also increments Apple `CURRENT_PROJECT_VERSION` in the Safari Xcode
 | Safari (Mac) | `APPLE_TEAM_ID` + App Store Connect API key **or** `APPLE_ID` + app-specific password | [developer.apple.com/account](https://developer.apple.com/account) — Team ID; API keys under Users and Access → Keys |
 
 Check readiness: `./scripts/check-release-credentials.sh`
+
+Before publishing: `./scripts/check-store-pending.sh` (must exit 0). See **Publish to all stores** above.
 
 **Safari** builds the macOS `NunusHost` scheme only (not iOS). After upload, finish review in App Store Connect.
 

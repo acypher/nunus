@@ -2,6 +2,10 @@
 # Build and publish the current manifest.json version to Chrome, Firefox, and Safari.
 # No version bump or git operations — use release.sh for a full release.
 #
+# Before publish (run manually or rely on checks below):
+#   ./scripts/check-release-credentials.sh
+#   ./scripts/check-store-pending.sh   # must exit 0 (READY)
+#
 # Usage:
 #   ./scripts/publish-stores.sh
 #   ./scripts/publish-stores.sh --build-only
@@ -45,6 +49,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   if [[ "$BUILD_ONLY" -eq 0 ]]; then
     echo "  3. Upload to Chrome Web Store, Firefox AMO, and App Store Connect"
     "$SCRIPT_DIR/check-release-credentials.sh" || true
+    "$SCRIPT_DIR/check-store-pending.sh" || true
   fi
   exit 0
 fi
@@ -81,6 +86,17 @@ if ! "$SCRIPT_DIR/check-release-credentials.sh"; then
 fi
 
 echo
+echo "== Check for pending store submissions =="
+if ! "$SCRIPT_DIR/check-store-pending.sh"; then
+  echo
+  echo "Stopped before publishing. Artifacts are ready:"
+  echo "  Chrome: $ZIP"
+  echo "  Firefox: $XPI"
+  echo "  Safari: $PKG"
+  exit 1
+fi
+
+echo
 echo "== Publish Chrome =="
 python3 "$SCRIPT_DIR/publish-chrome.py" "$ZIP"
 
@@ -92,9 +108,17 @@ echo
 echo "== Publish Safari (Mac App Store) =="
 "$SCRIPT_DIR/publish-safari-mac.sh" "$PKG"
 
+if [[ "${APP_STORE_SKIP_SUBMIT:-}" == "1" ]]; then
+  echo "Skipped App Store submit (APP_STORE_SKIP_SUBMIT=1)."
+else
+  echo
+  echo "== Submit Safari for App Review =="
+  "$SCRIPT_DIR/submit-safari-appstore.sh"
+fi
+
 echo
 echo "Publish ${VERSION} complete."
 echo "  Chrome: ${ZIP}"
 echo "  Firefox: signed via web-ext"
-echo "  Safari: ${PKG} uploaded to App Store Connect"
-echo "Review Safari submission in App Store Connect before it goes live."
+echo "  Safari: ${PKG} uploaded; App Review submission attempted via API"
+echo "Monitor review status in App Store Connect."
