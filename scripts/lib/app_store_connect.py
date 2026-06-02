@@ -277,6 +277,30 @@ class AppStoreConnectClient:
         )
         return version_id
 
+    def release_app_store_version(self, version_id: str) -> None:
+        """Release an App Store-approved macOS version (PENDING_DEVELOPER_RELEASE)."""
+        version = self.get(f"/v1/appStoreVersions/{version_id}")
+        state = (version.get("data") or {}).get("attributes", {}).get("appStoreState")
+        if state == "READY_FOR_SALE":
+            return
+        if state != "PENDING_DEVELOPER_RELEASE":
+            raise AppStoreConnectError(
+                f"App Store version {version_id} is {state}; only PENDING_DEVELOPER_RELEASE can be released"
+            )
+        self.post(
+            "/v1/appStoreVersionReleaseRequests",
+            {
+                "data": {
+                    "type": "appStoreVersionReleaseRequests",
+                    "relationships": {
+                        "appStoreVersion": {
+                            "data": {"type": "appStoreVersions", "id": version_id},
+                        }
+                    },
+                }
+            },
+        )
+
 
 def load_release_env(root: Path) -> None:
     env_file = Path(os.environ.get("NUNUS_RELEASE_ENV", root / "scripts" / "release.env"))

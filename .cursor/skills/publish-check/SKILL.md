@@ -21,13 +21,17 @@ From the **NunusCursor repo root**:
 
 Requires `scripts/release.env` (same credentials as publish). Exit **0** only when Chrome, Firefox, and Safari all report **LIVE** for the repo version.
 
-Optional: compare against a specific version without changing `manifest.json`:
+Check a specific published version (for example while `manifest.json` has moved on):
 
 ```bash
-python3 scripts/check_store_live.py  # always uses manifest.json
+./scripts/check-store-live.sh --version 1.6.6
 ```
 
-(There is no `--version` flag yet; use `manifest.json` or ask the user to confirm the target version.)
+Quiet mode (no output when not yet live; useful for scripts):
+
+```bash
+./scripts/check-store-live.sh --version 1.6.6 --quiet
+```
 
 ## Interpret results
 
@@ -50,6 +54,8 @@ Uses AMO API: `current_version` is live; unreviewed listed builds show **PENDING
 
 Uses App Store Connect: `READY_FOR_SALE` version is live; `WAITING_FOR_REVIEW`, `IN_REVIEW`, etc. show **PENDING**.
 
+When Apple approves but the version is **Pending Developer Release**, publishCheck automatically calls the App Store Connect release API (unless `APP_STORE_AUTO_RELEASE=0`). After release, it may take a few minutes before Safari shows **LIVE**.
+
 ## Report to the user
 
 After running the script, summarize in a short table:
@@ -68,6 +74,8 @@ Include the script **Summary** line. If **NOT LIVE**, say which stores are still
 | Is the release live? | `./scripts/check-store-live.sh` |
 
 Run **pending** before publish; run **live** after publish or when the user asks if a version shipped.
+
+After **publish**, a daily local job runs the same live check until all three stores serve the published version, then emails `code@acypher.com` and stops. See **publish-nunus** skill (**Daily publish-check until live**).
 
 ## Do not confuse with
 

@@ -14,3 +14,11 @@ scripts/keys/
 # Local Safari build artifacts / backup projects
 safari/build/
 safari/NunusSafari (from backup).xcodeproj/
+
+# Daily publish-check watcher state and logs
+scripts/.publish-check-watch.json
+scripts/logs/
+
+# Python bytecode caches
+__pycache__/
+*.pyc

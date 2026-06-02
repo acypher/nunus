@@ -110,6 +110,7 @@ Report:
 - Paths to zip/xpi if built
 - Chrome and Firefox: submitted for store review — monitor dashboards
 - Safari: upload + **submit for App Review via API** — monitor [App Store Connect](https://appstoreconnect.apple.com/); fix in ASC if submit fails (export compliance, missing metadata)
+- **Daily publish-check** armed automatically (see below)
 
 ### Manual steps after publish (tell the user)
 
@@ -123,4 +124,37 @@ Optional What's New text: set `APP_STORE_WHATS_NEW` or `docs/app-store-whats-new
 
 Re-run `./scripts/check-store-pending.sh` after publish; expect **PENDING** on all three while reviews are in progress.
 
-After reviews complete, verify live availability with `./scripts/check-store-live.sh` (see **publish-check** skill).
+## Daily publish-check until live (automatic)
+
+Every successful `./scripts/publish-stores.sh` (not `--build-only` or `--dry-run`) concludes by arming a **daily local check** via macOS `launchd`:
+
+```bash
+./scripts/setup-publish-check-daily.sh --version <published-version>
+```
+
+`publish-stores.sh` runs this automatically unless `PUBLISH_CHECK_SKIP_DAILY=1`.
+
+### What the daily job does
+
+Once per day (default **09:00** local; override with `PUBLISH_CHECK_DAILY_HOUR` / `PUBLISH_CHECK_DAILY_MINUTE` in `release.env`):
+
+1. Run the same logic as **publishCheck** (`check_store_live.py`) for the **published version** stored in `scripts/.publish-check-watch.json`.
+2. If Safari is **PENDING_DEVELOPER_RELEASE** (approved, not released), automatically release it via App Store Connect API (unless `APP_STORE_AUTO_RELEASE=0`).
+3. If **not** live on all three stores: **do nothing** (silent; logged to `scripts/logs/publish-check-watch.log`).
+4. When **live on all three**: send email to **`code@acypher.com`** (override with `PUBLISH_CHECK_NOTIFY_EMAIL`) with subject `Nunus version x.y.z is now Live on all stores`, then **stop** the daily schedule and remove the launch agent.
+
+### Email configuration
+
+Set SMTP in `scripts/release.env` (see `release.env.example`). Without SMTP, the script falls back to macOS `/usr/bin/mail` if configured.
+
+### Manual controls
+
+```bash
+./scripts/setup-publish-check-daily.sh --status
+./scripts/setup-publish-check-daily.sh --stop
+./scripts/run-publish-check-watch.sh   # one check now (same as launchd)
+```
+
+For an immediate manual check without affecting the schedule, use `./scripts/check-store-live.sh --version X.Y.Z`.
+
+See **publish-check** skill for interpreting live/pending states.

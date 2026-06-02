@@ -167,6 +167,10 @@ function titleVisibleForTracking(site, articleRoot) {
 let _viewedCache = null;
 let _titleCache = null;
 
+// When true, the scroll-driven "Newly Viewed" marker is paused (used during the
+// option-scroll lazy-load warm-up so the fly-through does not mark unread articles).
+let _suppressViewportMarking = false;
+
 async function loadViewedArticles() {
   const result = await storageLocalGet([STORAGE_KEY, LEGACY_STORAGE_KEY]);
   let current = new Set(result[STORAGE_KEY] || []);
@@ -497,10 +501,14 @@ function buildRootToKeyMap(articlesMap, hostname) {
   return map;
 }
 
-/** Shared eligibility: not gray-from-previous-load, not topic-blocked, on-screen column. */
+/** Shared eligibility: not grayed, not topic-blocked, on-screen column. */
 function isOptionScrollEligible(el, vw, viewedArticles, sessionViewed, rootToKey) {
   if (!el.isConnected) return false;
   if (el.dataset.nunusTopicBlocked === 'true') return false;
+  // Never stop on a visually grayed card. Covers previous-load views AND
+  // duplicate occurrences of an article already viewed this session (whose key
+  // is in sessionViewed, so the list-entry check below would miss them).
+  if (el.dataset.nunusViewed === 'true') return false;
   const rect = el.getBoundingClientRect();
   if (rect.left >= vw) return false;
   const key = rootToKey.get(el);
@@ -544,6 +552,7 @@ function registerInViewportNewlyViewed(site, mergeNewArticles) {
   let scheduled = false;
   const flush = () => {
     scheduled = false;
+    if (_suppressViewportMarking) return;
     const hostname = window.location.hostname;
     void markInViewportAsNewlyViewed(site, hostname).then(() => {
       if (typeof mergeNewArticles === 'function') return mergeNewArticles();
@@ -559,6 +568,43 @@ function registerInViewportNewlyViewed(site, mergeNewArticles) {
 }
 
 /**
+ * Force lazy-loaded sections (e.g. the lower NEWS rails) to render so article
+ * positions are stable before an option-scroll jump. Jumps to the bottom of the
+ * page, waits for its height to settle, then restores the original scroll
+ * position. Marking of in-viewport articles is suppressed during the fly-through
+ * so we do not record unread articles as Newly Viewed.
+ */
+async function warmUpHomepageLayout(restoreY) {
+  const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const pageHeight = () =>
+    Math.max(
+      document.documentElement.scrollHeight,
+      document.body?.scrollHeight || 0
+    );
+
+  _suppressViewportMarking = true;
+  try {
+    let lastHeight = pageHeight();
+    let stableCount = 0;
+    for (let i = 0; i < 12 && stableCount < 2; i++) {
+      window.scrollTo({ top: maxScrollY(), behavior: 'auto' });
+      await delay(80);
+      const height = pageHeight();
+      if (height === lastHeight) {
+        stableCount += 1;
+      } else {
+        stableCount = 0;
+        lastHeight = height;
+      }
+    }
+    window.scrollTo({ top: restoreY, behavior: 'auto' });
+    await delay(60);
+  } finally {
+    _suppressViewportMarking = false;
+  }
+}
+
+/**
  * Option + ArrowDown/Up: stop at the next article not in Viewed Articles (previous
  * load) whose top is below/above the viewport. Skip gray cards and anything on screen.
  */
@@ -568,6 +614,10 @@ function registerSkipGrayScroll(site, mergeNewArticles) {
   /** Document Y of the last option-scroll stop (avoids re-targeting the same row). */
   let lastOptionStopDocTop = null;
   let lastOptionDirection = null;
+  /** Once per page: fly through the page so lazy sections load before we jump. */
+  let warmedUpLazyLoad = false;
+  /** True while the warm-up fly-through is in progress (drops concurrent presses). */
+  let warmingUpLazyLoad = false;
 
   document.addEventListener(
     'keydown',
@@ -581,6 +631,18 @@ function registerSkipGrayScroll(site, mergeNewArticles) {
 
       void (async () => {
         const hostname = window.location.hostname;
+
+        // First option-scroll on this page: fly to the bottom and back so lazy
+        // sections (e.g. the lower NEWS rails) load and article positions are
+        // stable. Otherwise the first jump into an unloaded region overshoots.
+        if (!warmedUpLazyLoad) {
+          if (warmingUpLazyLoad) return;
+          warmingUpLazyLoad = true;
+          await warmUpHomepageLayout(window.scrollY);
+          warmingUpLazyLoad = false;
+          warmedUpLazyLoad = true;
+        }
+
         await markInViewportAsNewlyViewed(site, hostname);
         if (typeof mergeNewArticles === 'function') await mergeNewArticles();
 

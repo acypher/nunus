@@ -22,4 +22,6 @@ Each release also increments **`CURRENT_PROJECT_VERSION`** in `project.pbxproj` 
 - **MINOR** — improvements within publications already shipped (default `./scripts/release.sh` bump)
 - **PATCH** — bug fixes only (not used by release automation today)
 
-Prefer **`./scripts/release.sh "message"`** (minor) or **`./scripts/release.sh --major "message"`** when adding a publication to `manifest.json`.
+## Agent edits
+
+When the agent changes committable files in a turn, bump **patch** per **agent-patch-version** (always-applied rule). Use `./scripts/bump-version.py --version X.Y.Z` after other edits.

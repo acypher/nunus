@@ -1,0 +1,34 @@
+---
+description: Bump patch version when the agent edits committable project files
+alwaysApply: true
+---
+
+# Agent patch version bump
+
+When a response **changes one or more project files** that would normally be committed, **increment the patch version** before finishing that response.
+
+## When to bump
+
+Bump when you edit tracked source, scripts, docs, `.cursor/` skills or rules, Safari/Xcode project files, or other repo files the user would commit.
+
+**Do not bump** when the turn is:
+
+- Questions, explanations, or review only (no file edits)
+- Edits only under gitignored paths (`scripts/release.env`, `safari/build/`, `__pycache__/`, etc.)
+- The user explicitly says not to change the version
+
+**Bump once per response**, even if you touched many files.
+
+## How to bump
+
+From the repo root, after your other edits:
+
+```bash
+CUR=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+NEW=$(python3 -c "v='$CUR'.split('.'); print(f\"{v[0]}.{v[1]}.{int(v[2])+1}\")")
+python3 scripts/bump-version.py --version "$NEW"
+```
+
+`bump-version.py` syncs `manifest.json`, Safari `MARKETING_VERSION`, and `CURRENT_PROJECT_VERSION` (build number).
+
+Include the version bump in the same change set you report to the user. Do not use a separate minor/major bump unless the user asks (see **ship** / **version-bumping** for release flows).

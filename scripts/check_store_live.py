@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import argparse
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,8 +13,10 @@ from urllib import error, parse
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(SCRIPT_DIR / "lib"))
 
 import check_store_pending as pending  # noqa: E402
+from app_store_connect import AppStoreConnectClient  # noqa: E402
 
 StoreState = Literal["LIVE", "PENDING", "BEHIND", "CHECK"]
 
@@ -48,6 +52,70 @@ def versions_match(left: str, right: str) -> bool:
     if left == "unknown" or right == "unknown":
         return False
     return version_key(left) == version_key(right)
+
+
+def safari_auto_release_enabled() -> bool:
+    return os.environ.get("APP_STORE_AUTO_RELEASE", "1").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+    }
+
+
+def safari_version_rows(app_id: str) -> list[dict]:
+    payload = pending.asc_get(f"/v1/apps/{app_id}/appStoreVersions?filter[platform]=MAC_OS&limit=20")
+    return payload.get("data") or []
+
+
+def safari_live_version(rows: list[dict]) -> str:
+    live = "unknown"
+    for row in rows:
+        attrs = row.get("attributes") or {}
+        version_string = attrs.get("versionString") or "?"
+        if attrs.get("appStoreState") != "READY_FOR_SALE":
+            continue
+        if live == "unknown" or version_key(version_string) > version_key(live):
+            live = version_string
+    return live
+
+
+def try_release_safari_version(target: str) -> str | None:
+    """Release Safari version when Apple approved but manual release is required."""
+    if not safari_auto_release_enabled():
+        return None
+
+    bundle_id = pending.env("MACOS_BUNDLE_ID") or pending.DEFAULT_BUNDLE_ID
+    required = [
+        "APP_STORE_CONNECT_API_KEY_ID",
+        "APP_STORE_CONNECT_ISSUER_ID",
+        "APP_STORE_CONNECT_API_KEY_PATH",
+    ]
+    if any(not pending.env(name) for name in required):
+        return None
+
+    apps = pending.asc_get(f"/v1/apps?filter[bundleId]={parse.quote(bundle_id)}")
+    app_rows = apps.get("data") or []
+    if not app_rows:
+        return None
+
+    app_id = app_rows[0]["id"]
+    target_row = None
+    for row in safari_version_rows(app_id):
+        attrs = row.get("attributes") or {}
+        if attrs.get("versionString") == target:
+            target_row = row
+            break
+
+    if target_row is None:
+        return None
+
+    state = (target_row.get("attributes") or {}).get("appStoreState")
+    if state != "PENDING_DEVELOPER_RELEASE":
+        return None
+
+    client = AppStoreConnectClient()
+    client.release_app_store_version(target_row["id"])
+    return f"Released Nunus {target} to the Mac App Store (was PENDING_DEVELOPER_RELEASE)"
 
 
 def channel_version(channel: dict) -> str | None:
@@ -218,14 +286,13 @@ def safari_status(target: str) -> LiveStatus:
         body = exc.read().decode("utf-8", errors="replace")
         return LiveStatus(store, "CHECK", "unknown", target, "could not list versions", f"HTTP {exc.code}: {body}")
 
-    live = "unknown"
+    rows = versions.get("data") or []
+    live = safari_live_version(rows)
     target_state = None
-    for row in versions.get("data", []):
+    for row in rows:
         attrs = row.get("attributes") or {}
         version_string = attrs.get("versionString") or "?"
         state = attrs.get("appStoreState") or "UNKNOWN"
-        if state == "READY_FOR_SALE":
-            live = version_string
         if version_string == target:
             target_state = state
 
@@ -234,6 +301,21 @@ def safari_status(target: str) -> LiveStatus:
 
     if target_state == "READY_FOR_SALE":
         return LiveStatus(store, "LIVE", target, target, f"{target} is live ({app_name})")
+
+    if target_state == "PENDING_DEVELOPER_RELEASE":
+        detail = (
+            "Approved by Apple — publishCheck releases automatically when APP_STORE_AUTO_RELEASE is enabled."
+            if safari_auto_release_enabled()
+            else "Approved by Apple — click Release This Version in App Store Connect."
+        )
+        return LiveStatus(
+            store,
+            "PENDING",
+            live,
+            target,
+            f"live {live}; {target} is PENDING_DEVELOPER_RELEASE (approved, not yet on App Store)",
+            detail,
+        )
 
     if target_state in pending.SAFARI_PENDING_VERSION_STATES:
         return LiveStatus(
@@ -310,9 +392,38 @@ def print_statuses(statuses: list[LiveStatus], target: str) -> int:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--version", metavar="X.Y.Z", help="Target version (default: manifest.json)")
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Exit 0 with no output when the version is not live on all stores",
+    )
+    parser.add_argument(
+        "--no-auto-release",
+        action="store_true",
+        help="Do not release Safari versions in PENDING_DEVELOPER_RELEASE",
+    )
+    args = parser.parse_args()
+
     pending.load_env()
-    target = pending.repo_version()
+    target = args.version or pending.repo_version()
+
+    release_note = None
+    if not args.no_auto_release:
+        release_note = try_release_safari_version(target)
+
     statuses = [chrome_status(target), firefox_status(target), safari_status(target)]
+    live_count = sum(1 for item in statuses if item.state == "LIVE")
+    all_live = live_count == len(statuses)
+
+    if args.quiet and not all_live:
+        return 0
+
+    if release_note and not args.quiet:
+        print(release_note)
+        print()
+
     return print_statuses(statuses, target)
 
 

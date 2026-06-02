@@ -25,5 +25,6 @@ Run these from the repo root **before** `./scripts/publish-stores.sh`:
 3. Run the **Before publish** checks above. If either fails, stop.
 4. Run `./scripts/publish-stores.sh` (or `--dry-run` if they asked to preview).
 5. Report version, artifact paths, and note that Safari submit-for-review is attempted automatically after upload (monitor App Store Connect if it fails).
+6. Confirm that **daily publish-check** was armed for the published version (unless `PUBLISH_CHECK_SKIP_DAILY=1`). It emails `code@acypher.com` when all three stores are live, then stops.
 
 Do **not** run `version-commit.sh` alone unless they only want GitHub/zip (that is **`/version`**, not publish).
