@@ -167,10 +167,6 @@ function titleVisibleForTracking(site, articleRoot) {
 let _viewedCache = null;
 let _titleCache = null;
 
-// When true, the scroll-driven "Newly Viewed" marker is paused (used during the
-// option-scroll lazy-load warm-up so the fly-through does not mark unread articles).
-let _suppressViewportMarking = false;
-
 async function loadViewedArticles() {
   const result = await storageLocalGet([STORAGE_KEY, LEGACY_STORAGE_KEY]);
   let current = new Set(result[STORAGE_KEY] || []);
@@ -447,10 +443,10 @@ function sortRootsByDocumentOrder(roots) {
   });
 }
 
-function sortRootsByVisualPosition(roots) {
+function sortRootsByVisualPosition(roots, site) {
   roots.sort((a, b) => {
-    const ar = a.getBoundingClientRect();
-    const br = b.getBoundingClientRect();
+    const ar = scrollNavRect(site, a);
+    const br = scrollNavRect(site, b);
     const atop = ar.top + window.scrollY;
     const btop = br.top + window.scrollY;
 
@@ -474,16 +470,25 @@ function maxScrollY() {
   return Math.max(0, h - vh);
 }
 
-function scrollNavDocTop(el) {
-  return el.getBoundingClientRect().top + window.scrollY;
+function scrollNavTarget(site, articleRoot) {
+  const raw =
+    typeof site.getVisibilityTargets === 'function'
+      ? site.getVisibilityTargets(articleRoot)
+      : [articleRoot];
+  const targets = Array.isArray(raw) && raw.length ? raw : [articleRoot];
+  return targets.find(el => el && el.isConnected) || articleRoot;
 }
 
-/** True when any part of the article root intersects the viewport (not an off-screen carousel slide). */
-function isScrollNavInViewport(el, vw) {
-  const rect = el.getBoundingClientRect();
-  if (rect.left >= vw) return false;
-  if (rect.bottom <= 0 || rect.top >= window.innerHeight) return false;
-  return true;
+function scrollNavRect(site, el) {
+  return scrollNavTarget(site, el).getBoundingClientRect();
+}
+
+function scrollNavDocTop(site, el) {
+  return scrollNavRect(site, el).top + window.scrollY;
+}
+
+function scrollNavDocBottom(site, el) {
+  return scrollNavRect(site, el).bottom + window.scrollY;
 }
 
 /** Popup "Viewed Articles": seen on a previous load, gray on page (persistent, not this session). */
@@ -520,59 +525,10 @@ function isOptionScrollEligible(el, vw, viewedArticles, sessionViewed, rootToKey
 const OPTION_SCROLL_ROW_EPS = 2;
 
 /**
- * Add in-viewport articles to Newly Viewed when they are in neither popup list yet.
- */
-async function markInViewportAsNewlyViewed(site, hostname) {
-  const articles = site.findArticles();
-  const vw = window.innerWidth;
-
-  for (const [id, elements] of articles) {
-    const viewedArticles = await getViewed();
-    const sessionViewed = getTabSessionViewedSet();
-    const key = getViewedKey(hostname, id);
-    if (sessionViewed.has(key)) continue;
-    if (isViewedArticlesListEntry(viewedArticles, sessionViewed, key)) continue;
-
-    const inViewport = [...elements].filter(
-      el =>
-        el.isConnected &&
-        el.dataset.nunusTopicBlocked !== 'true' &&
-        isScrollNavInViewport(el, vw)
-    );
-    if (!inViewport.length) continue;
-
-    sortRootsByDocumentOrder(inViewport);
-    await markAsViewed(site, id, inViewport[0]);
-  }
-}
-
-function registerInViewportNewlyViewed(site, mergeNewArticles) {
-  if (typeof site.isHomepage !== 'function') return;
-
-  let scheduled = false;
-  const flush = () => {
-    scheduled = false;
-    if (_suppressViewportMarking) return;
-    const hostname = window.location.hostname;
-    void markInViewportAsNewlyViewed(site, hostname).then(() => {
-      if (typeof mergeNewArticles === 'function') return mergeNewArticles();
-    });
-  };
-  const onScroll = () => {
-    if (scheduled) return;
-    scheduled = true;
-    requestAnimationFrame(flush);
-  };
-
-  window.addEventListener('scroll', onScroll, { passive: true });
-}
-
-/**
  * Force lazy-loaded sections (e.g. the lower NEWS rails) to render so article
  * positions are stable before an option-scroll jump. Jumps to the bottom of the
  * page, waits for its height to settle, then restores the original scroll
- * position. Marking of in-viewport articles is suppressed during the fly-through
- * so we do not record unread articles as Newly Viewed.
+ * position.
  */
 async function warmUpHomepageLayout(restoreY) {
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -582,26 +538,21 @@ async function warmUpHomepageLayout(restoreY) {
       document.body?.scrollHeight || 0
     );
 
-  _suppressViewportMarking = true;
-  try {
-    let lastHeight = pageHeight();
-    let stableCount = 0;
-    for (let i = 0; i < 12 && stableCount < 2; i++) {
-      window.scrollTo({ top: maxScrollY(), behavior: 'auto' });
-      await delay(80);
-      const height = pageHeight();
-      if (height === lastHeight) {
-        stableCount += 1;
-      } else {
-        stableCount = 0;
-        lastHeight = height;
-      }
+  let lastHeight = pageHeight();
+  let stableCount = 0;
+  for (let i = 0; i < 12 && stableCount < 2; i++) {
+    window.scrollTo({ top: maxScrollY(), behavior: 'auto' });
+    await delay(80);
+    const height = pageHeight();
+    if (height === lastHeight) {
+      stableCount += 1;
+    } else {
+      stableCount = 0;
+      lastHeight = height;
     }
-    window.scrollTo({ top: restoreY, behavior: 'auto' });
-    await delay(60);
-  } finally {
-    _suppressViewportMarking = false;
   }
+  window.scrollTo({ top: restoreY, behavior: 'auto' });
+  await delay(60);
 }
 
 /**
@@ -643,7 +594,6 @@ function registerSkipGrayScroll(site, mergeNewArticles) {
           warmedUpLazyLoad = true;
         }
 
-        await markInViewportAsNewlyViewed(site, hostname);
         if (typeof mergeNewArticles === 'function') await mergeNewArticles();
 
         const viewedArticles = await getViewed();
@@ -652,7 +602,7 @@ function registerSkipGrayScroll(site, mergeNewArticles) {
         const rootToKey = buildRootToKeyMap(articlesMap, hostname);
         const roots = flattenArticleRoots(articlesMap);
         if (roots.length === 0) return;
-        sortRootsByVisualPosition(roots);
+        sortRootsByVisualPosition(roots, site);
 
         const cap = maxScrollY();
         const vw = window.innerWidth;
@@ -665,7 +615,7 @@ function registerSkipGrayScroll(site, mergeNewArticles) {
           for (const el of roots) {
             if (!isOptionScrollEligible(el, vw, viewedArticles, sessionViewed, rootToKey))
               continue;
-            const docTop = scrollNavDocTop(el);
+            const docTop = scrollNavDocTop(site, el);
             if (docTop + 0.5 < minScrollY) continue;
             if (
               lastOptionDirection === 'down' &&
@@ -696,7 +646,7 @@ function registerSkipGrayScroll(site, mergeNewArticles) {
           for (const el of roots) {
             if (!isOptionScrollEligible(el, vw, viewedArticles, sessionViewed, rootToKey))
               continue;
-            const docTop = scrollNavDocTop(el);
+            const docTop = scrollNavDocTop(site, el);
             if (docTop > maxDocTop) break;
             if (
               lastOptionDirection === 'up' &&
@@ -716,7 +666,7 @@ function registerSkipGrayScroll(site, mergeNewArticles) {
           } else {
             // For articles taller than the viewport, fall back to aligning the top
             // so we do not scroll past them.
-            const docBottom = targetEl.getBoundingClientRect().bottom + window.scrollY;
+            const docBottom = scrollNavDocBottom(site, targetEl);
             const scrollTarget = Math.max(
               0,
               Math.min(docBottom - vh, targetDocTop, cap)
@@ -877,9 +827,6 @@ async function run(site) {
   // One safety-net rescan for lazy-loaded content
   setTimeout(mergeNewArticles, 2000);
 
-  void markInViewportAsNewlyViewed(site, hostname).then(mergeNewArticles);
-
-  registerInViewportNewlyViewed(site, mergeNewArticles);
   registerSkipGrayScroll(site, mergeNewArticles);
 }
 
