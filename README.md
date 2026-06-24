@@ -1,12 +1,14 @@
 # Nunus  
 
-**Nunus for NYTimes Browser Extension**  
+**Nunus for NYTimes and Google News Browser Extension**  
 
-Nunus helps you find what’s new on the New York Times front page since you last checked.  
+Nunus helps you find what’s new on the New York Times front page and on Google News since you last checked.  
 
 **What it does**  
 
 When you revisit the NYTimes front page, Nunus automatically grays out any article titles you have already seen on the front page, so new stories stand out immediately.  
+
+On **Google News**, Nunus works at the story-cluster level: it grays out whole story clusters (the Google-generated cluster headline) you have already seen, and ignores the individual per-publisher sub-listings within a cluster.  
 
 **How “already seen” is defined**  
 
@@ -128,6 +130,7 @@ Before publishing: `./scripts/check-store-pending.sh` (must exit 0). See **Publi
 - `core.js` - Shared logic (storage, visibility tracking, styling)
 - `content.js` - Entry point; dispatches to site handlers
 - `sites/nyt.js` - New York Times (shipped in `manifest.json`)
+- `sites/googlenews.js` - Google News (shipped in `manifest.json`)
 - `sites/washingtonpost.js`, `sites/guardian.js` - work-in-progress handlers (not in the current manifest)
 
 To ship a new publication, create or finish `sites/newsite.js`, register it in `content.js` and `manifest.json` (host permissions, content script matches, and script list), and release with **`--major`**.

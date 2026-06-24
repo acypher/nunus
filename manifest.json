@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "1.7.0",
-  "description": "Gray out NYTimes homepage headlines you have seen.",
+  "version": "2.0.1",
+  "description": "Gray out NYTimes and Google News headlines you have seen.",
   "browser_specific_settings": {
     "gecko": {
       "id": "nunus@nunus.extension",
@@ -29,7 +29,8 @@
     "https://nytimes.com/",
     "https://nytimes.com/?*",
     "https://*.nytimes.com/",
-    "https://*.nytimes.com/?*"
+    "https://*.nytimes.com/?*",
+    "https://news.google.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -56,6 +57,18 @@
         "ext-chrome-shim.js",
         "core.js",
         "sites/nyt.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://news.google.com/*"
+      ],
+      "js": [
+        "ext-chrome-shim.js",
+        "core.js",
+        "sites/googlenews.js",
         "content.js"
       ],
       "run_at": "document_idle"

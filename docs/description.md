@@ -2,6 +2,8 @@
 
 When you revisit the NYTimes front page, Nunus automatically grays out any article titles you have already seen on the front page, so new stories stand out immediately.  
 
+Nunus also works on **Google News**: it grays out whole story clusters you have already seen (using the cluster headline), so the new stories of the day stand out. It tracks each story at the cluster level rather than the individual per-publisher sub-listings.  
+
 **How “already seen” is defined**  
 
 Whether you actually click to view an article is unimportant.  A title counts as seen as soon as the title appears for a few seconds on the front page. Even if the title changes a bit, it will still be marked as seen, as long as it links to the same article. If the same title appears more than once on the page, all later occurrences are grayed out immediately.  

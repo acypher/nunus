@@ -97,6 +97,8 @@ function nunusInstallNytDebugOverlay(site) {
 
   if (host.includes('nytimes.com')) {
     site = window.NunusSites?.nyt;
+  } else if (host.includes('news.google.com')) {
+    site = window.NunusSites?.googlenews;
   } else if (host.includes('washingtonpost.com')) {
     site = window.NunusSites?.washingtonpost;
   } else if (host.includes('theguardian.com') || host.includes('guardian.co.uk')) {
@@ -107,7 +109,7 @@ function nunusInstallNytDebugOverlay(site) {
     void window.NunusRun(site).catch(() => {});
   }
 
-  if (host.includes('nytimes.com') && site && nunusNytDebugEnabled()) {
+  if (site && nunusNytDebugEnabled()) {
     nunusInstallNytDebugOverlay(site);
     let debounce;
     const mo = new MutationObserver(() => {
