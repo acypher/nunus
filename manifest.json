@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "2.0.1",
-  "description": "Gray out NYTimes and Google News headlines you have seen.",
+  "version": "3.0.0",
+  "description": "Gray out NYTimes, Google News, and The Guardian headlines you have seen.",
   "browser_specific_settings": {
     "gecko": {
       "id": "nunus@nunus.extension",
@@ -30,7 +30,21 @@
     "https://nytimes.com/?*",
     "https://*.nytimes.com/",
     "https://*.nytimes.com/?*",
-    "https://news.google.com/*"
+    "https://news.google.com/*",
+    "https://www.theguardian.com/",
+    "https://www.theguardian.com/?*",
+    "https://www.theguardian.com/us",
+    "https://www.theguardian.com/us?*",
+    "https://www.theguardian.com/uk",
+    "https://www.theguardian.com/uk?*",
+    "https://www.theguardian.com/au",
+    "https://www.theguardian.com/au?*",
+    "https://www.theguardian.com/europe",
+    "https://www.theguardian.com/europe?*",
+    "https://www.theguardian.com/international",
+    "https://www.theguardian.com/international?*",
+    "https://theguardian.com/",
+    "https://theguardian.com/?*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -69,6 +83,31 @@
         "ext-chrome-shim.js",
         "core.js",
         "sites/googlenews.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.theguardian.com/",
+        "https://www.theguardian.com/?*",
+        "https://www.theguardian.com/us",
+        "https://www.theguardian.com/us?*",
+        "https://www.theguardian.com/uk",
+        "https://www.theguardian.com/uk?*",
+        "https://www.theguardian.com/au",
+        "https://www.theguardian.com/au?*",
+        "https://www.theguardian.com/europe",
+        "https://www.theguardian.com/europe?*",
+        "https://www.theguardian.com/international",
+        "https://www.theguardian.com/international?*",
+        "https://theguardian.com/",
+        "https://theguardian.com/?*"
+      ],
+      "js": [
+        "ext-chrome-shim.js",
+        "core.js",
+        "sites/guardian.js",
         "content.js"
       ],
       "run_at": "document_idle"

@@ -101,7 +101,7 @@ function nunusInstallNytDebugOverlay(site) {
     site = window.NunusSites?.googlenews;
   } else if (host.includes('washingtonpost.com')) {
     site = window.NunusSites?.washingtonpost;
-  } else if (host.includes('theguardian.com') || host.includes('guardian.co.uk')) {
+  } else if (host.includes('theguardian.com')) {
     site = window.NunusSites?.guardian;
   }
 
