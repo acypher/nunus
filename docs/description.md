@@ -1,20 +1,23 @@
-**What it does**  
+**Read only the news that's new**
 
-When you revisit the NYTimes front page, Nunus automatically grays out any article titles you have already seen on the front page, so new stories stand out immediately.  
+Nunus grays out news headlines you have already seen, so what is actually new stands out when you check back.
 
-Nunus also works on **Google News**: it grays out whole story clusters you have already seen (using the cluster headline), so the new stories of the day stand out. It tracks each story at the cluster level rather than the individual per-publisher sub-listings.  
+Nunus currently works on the home pages of The New York Times, Google News, and The Guardian.
 
-On **The Guardian** (theguardian.com edition fronts), Nunus grays out the headlines of articles you have already seen, including repeats that reappear in lists such as “Most viewed”.  
+**What it does**
 
-**How “already seen” is defined**  
+When you revisit a supported news site, Nunus automatically grays out headlines you have already seen, so new stories stand out immediately.
 
-Whether you actually click to view an article is unimportant.  A title counts as seen as soon as the title appears for a few seconds on the front page. Even if the title changes a bit, it will still be marked as seen, as long as it links to the same article. If the same title appears more than once on the page, all later occurrences are grayed out immediately.  
+**Keyboard shortcut**
 
-**Keyboard shortcut**  
+Press Option + ↓ (Mac) to jump straight to the next unseen headline on the page.
 
-Press Option + ↓ (Mac) to jump straight to the next unseen title on the page.  
+**How “already seen” is defined**
 
-**Typical use case**  
+A headline counts as seen once it has been on your screen for a few seconds. You do not need to click through to the article. If the same story appears more than once on the page, later copies gray out right away. If a site tweaks the wording links to the same article, it still counts as seen.
 
-You read the Times over breakfast. As a news junkie, you check back in the afternoon. Most of the stories are the same — but several new ones have been added during the day. With Nunus, everything you have already seen is grayed out, so the new stories are immediately visible without any scanning.  
-This is especially useful on the weekend, when the Times frequently recycles articles from earlier in the week or even from previous weeks. Nunus grays those out too, so you only spend time on what is actually new to you.  
+**Typical use case**
+
+You scan the news over coffee in the morning. Returning home, you check back over a cocktail. Most of the stories are the same — but several new ones have been added during the day. With Nunus, everything you have already seen is grayed out, so the new stories are immediately visible without any scanning.
+
+News sites often recycle older stories, especially on weekends. Nunus grays those out too, so you only spend time on what is actually new to you.

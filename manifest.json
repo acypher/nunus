@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "3.0.0",
-  "description": "Gray out NYTimes, Google News, and The Guardian headlines you have seen.",
+  "version": "3.0.4",
+  "description": "Read only the news that's new. Gray out headlines you've already seen on NYTimes, Google News, and The Guardian.",
   "browser_specific_settings": {
     "gecko": {
       "id": "nunus@nunus.extension",
@@ -55,7 +55,7 @@
       "96": "icons/letterNu96.png"
     },
     "default_popup": "popup.html",
-    "default_title": "Nunus"
+    "default_title": "Nunus \u2014 Read only the news that's new"
   },
   "content_scripts": [
     {

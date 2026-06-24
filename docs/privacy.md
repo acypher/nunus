@@ -2,7 +2,7 @@
 
 **Effective date:** April 9, 2026
 
-Nunus is a browser extension that grays out news headlines you have already seen. It does not collect, transmit, or share any personal data.
+Nunus — *Read only the news that's new* — is a browser extension that grays out news headlines you have already seen. It does not collect, transmit, or share any personal data.
 
 ## Data stored locally
 

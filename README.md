@@ -1,27 +1,28 @@
-# Nunus  
+# Nunus
 
-**Nunus for NYTimes and Google News Browser Extension**  
+**Read only the news that's new**
 
-Nunus helps you find what’s new on the New York Times front page and on Google News since you last checked.  
+Nunus is a browser extension that grays out news headlines you have already seen, so what is actually new stands out when you check back.
 
-**What it does**  
+Nunus currently works on the home pages of The New York Times, Google News, and The Guardian.
 
-When you revisit the NYTimes front page, Nunus automatically grays out any article titles you have already seen on the front page, so new stories stand out immediately.  
+**What it does**
 
-On **Google News**, Nunus works at the story-cluster level: it grays out whole story clusters (the Google-generated cluster headline) you have already seen, and ignores the individual per-publisher sub-listings within a cluster.  
-
-**How “already seen” is defined**  
-
-An article title is considered "Seen" if that part of the front page has appeared on your screen for a few seconds. It is not about clicking to open the article's full page.   
+When you revisit a supported news site, Nunus automatically grays out headlines you have already seen, so new stories stand out immediately.
 
 **Keyboard shortcut**
 
-Press Option + ↓ (Mac) to jump straight to the next unseen title on the page.
+Press Option + ↓ (Mac) to jump straight to the next unseen headline on the page.
+
+**How “already seen” is defined**
+
+A headline counts as seen once it has been on your screen for a few seconds. You do not need to click through to the article. If the same story appears more than once on the page, later copies gray out right away. If a site tweaks the wording links to the same article, it still counts as seen.
 
 **Typical use case**
 
-You read the Times over breakfast. As a news junkie, you check back in the afternoon. Most of the stories are the same — but several new ones have been added during the day. With Nunus, everything you have already seen is grayed out, so the new stories are immediately visible without any scanning.  
-This is especially useful on the weekend, when the Times frequently recycles articles from earlier in the week or even from previous weeks. Nunus grays those out, so you only spend time on what is actually new to you.  The Times sometimes tweaks the title of an article, but as long as it links to the same article, that counts as having been seen.
+You scan the news over coffee in the morning. Returning home, you check back over a cocktail. Most of the stories are the same — but several new ones have been added during the day. With Nunus, everything you have already seen is grayed out, so the new stories are immediately visible without any scanning.
+
+News sites often recycle older stories, especially on weekends. Nunus grays those out too, so you only spend time on what is actually new to you.
 
 ## Installation
 
@@ -38,11 +39,11 @@ Install **Nunus** from the official extension listings (normal “add extension�
 
 Uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 
-- **MAJOR**: A newly supported publication (e.g. adding The Guardian when Nunus was NYTimes-only), or breaking changes (removed sites, incompatible storage format)
-- **MINOR**: Improvements within publications already shipped (e.g. better detection, new behavior on NYTimes)
+- **MAJOR**: A newly supported publication (e.g. adding The Guardian), or breaking changes (removed sites, incompatible storage format)
+- **MINOR**: Improvements within publications already shipped (e.g. better headline detection on Google News)
 - **PATCH**: Bug fixes and small polish
 
-Use `./scripts/release.sh --major "…"` when enabling a new publication in `manifest.json`. The default release bump is **minor** (NYTimes-only improvements).
+Use `./scripts/release.sh --major "…"` when enabling a new publication in `manifest.json`. The default release bump is **minor** (improvements to existing sites).
 
 ## Packaging (Chrome + Firefox)
 
