@@ -4,7 +4,7 @@
 
 Nunus is a browser extension that grays out news headlines you have already seen, so what is actually new stands out when you check back.
 
-Nunus currently works on the home pages of The New York Times, Google News, and The Guardian.
+Nunus currently works on the home pages of The New York Times, Google News, The Guardian, and Ground News.
 
 **What it does**
 
@@ -133,6 +133,7 @@ Before publishing: `./scripts/check-store-pending.sh` (must exit 0). See **Publi
 - `sites/nyt.js` - New York Times (shipped in `manifest.json`)
 - `sites/googlenews.js` - Google News (shipped in `manifest.json`)
 - `sites/guardian.js` - The Guardian (theguardian.com edition fronts; shipped in `manifest.json`)
+- `sites/groundnews.js` - Ground News (ground.news feeds; shipped in `manifest.json`)
 - `sites/washingtonpost.js` - work-in-progress handler (not in the current manifest)
 
 To ship a new publication, create or finish `sites/newsite.js`, register it in `content.js` and `manifest.json` (host permissions, content script matches, and script list), and release with **`--major`**.

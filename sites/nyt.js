@@ -175,10 +175,11 @@
     }
   }
 
-  function filterOutermost(elements) {
-    const arr = [...elements];
-    return arr.filter(
-      el => !arr.some(other => other !== el && other.contains(el))
+  /** Keep only the innermost roots for a URL (drops a root that contains another). */
+  function pruneNestedRoots(rootSet) {
+    const roots = [...rootSet];
+    return roots.filter(
+      r => !roots.some(other => other !== r && r.contains(other))
     );
   }
 
@@ -279,8 +280,8 @@
   }
 
   function collectStoryRoots() {
-    // Merge every strategy, then filterOutermost once. Early-returning on the
-    // first non-empty pass dropped video/magazine heroes: they use
+    // Merge every strategy; per-URL nested pruning happens in findArticles().
+    // Early-returning on the first non-empty pass dropped video/magazine heroes:
     // section.story-wrapper without div[data-tpl="sli"], while the rest of the
     // page has many sli cards.
     const candidates = new Set();
@@ -305,10 +306,13 @@
     for (const el of queryAll(document, '[data-testid$="-section"] article')) {
       if (rootHasArticleAnchor(el)) candidates.add(el);
     }
-    // Homepage / package rails: <ul><li><article>…<div class="… assetWrapper"> without story-wrapper
-    for (const el of queryAll(document, 'li > article')) {
-      if (!el.querySelector('.assetWrapper')) continue;
-      if (rootHasArticleAnchor(el)) candidates.add(el);
+    // Homepage / package rails: <ul><li>…<article>…<div class="… assetWrapper"> (any depth under li)
+    for (const li of queryAll(document, 'li')) {
+      for (const el of li.querySelectorAll('article')) {
+        if (!el.querySelector('.assetWrapper')) continue;
+        if (!rootHasArticleAnchor(el)) continue;
+        candidates.add(el);
+      }
     }
     // Kyt-style "Weekend Reads" video cards: <section data-tpl="lb"> wrapping
     // <p data-tpl="h"><a data-tpl="l"> — no story-wrapper anywhere in the subtree.
@@ -319,8 +323,8 @@
 
     // When the main card link is section > a > … > div.story-wrapper[data-tpl="sli"],
     // the anchor pass adds the section and the sli pass adds the inner roots.
-    // filterOutermost would keep only the section; a single section wrapping multiple
-    // columns would then collapse to one article. Prefer inner sli cards whenever
+    // A global outermost filter would keep only the section; a single section wrapping
+    // multiple columns would then collapse to one article. Prefer inner sli cards whenever
     // present (heroes without sli still use section-only roots).
     for (const el of [...candidates]) {
       if (
@@ -332,7 +336,7 @@
       }
     }
 
-    return filterOutermost([...candidates]);
+    return [...candidates];
   }
 
   /**
@@ -363,6 +367,10 @@
       const title = getTitleFromRoot(root);
       const id = getArticleUrl(root);
       if (title && id) add(id, root);
+    }
+
+    for (const [id, set] of articles) {
+      articles.set(id, new Set(pruneNestedRoots(set)));
     }
 
     return articles;

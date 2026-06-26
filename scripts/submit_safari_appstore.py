@@ -14,6 +14,7 @@ ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(SCRIPT_DIR / "lib"))
 
 from app_store_connect import AppStoreConnectClient, AppStoreConnectError, load_release_env  # noqa: E402
+from store_listing_copy import listing_description, listing_tagline  # noqa: E402
 
 MANIFEST = ROOT / "manifest.json"
 EDITABLE_VERSION_STATES = {
@@ -138,6 +139,17 @@ def main() -> int:
 
     client.set_build_encryption_compliance(build_id, uses_non_exempt_encryption=False)
     print("Set export compliance (usesNonExemptEncryption=false)")
+
+    print()
+    print(f"== Patch App Store listing ({version_string}, {locale}) ==")
+    client.set_version_localization(version_id, locale, description=listing_description())
+    print(f"Updated App Store description ({locale})")
+    app_info = client.app_info_for_version(app_id, version_row)
+    if app_info is None:
+        print("Subtitle not updated: no matching appInfo record")
+    else:
+        client.set_app_info_subtitle(app_info["id"], listing_tagline(), locale)
+        print(f"Updated App Store subtitle ({locale}): {listing_tagline()}")
 
     client.set_whats_new(version_id, whats_new, locale)
     print(f"Updated What's New ({locale})")

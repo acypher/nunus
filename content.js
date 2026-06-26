@@ -103,6 +103,8 @@ function nunusInstallNytDebugOverlay(site) {
     site = window.NunusSites?.washingtonpost;
   } else if (host.includes('theguardian.com')) {
     site = window.NunusSites?.guardian;
+  } else if (host.includes('ground.news')) {
+    site = window.NunusSites?.groundnews;
   }
 
   if (site && typeof window.NunusRun === 'function') {

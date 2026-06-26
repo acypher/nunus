@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "3.0.4",
-  "description": "Read only the news that's new. Gray out headlines you've already seen on NYTimes, Google News, and The Guardian.",
+  "version": "4.0.0",
+  "description": "Read only the news that's new. Gray out headlines you've already seen on NYTimes, Google News, The Guardian, and Ground News.",
   "browser_specific_settings": {
     "gecko": {
       "id": "nunus@nunus.extension",
@@ -44,7 +44,8 @@
     "https://www.theguardian.com/international",
     "https://www.theguardian.com/international?*",
     "https://theguardian.com/",
-    "https://theguardian.com/?*"
+    "https://theguardian.com/?*",
+    "https://ground.news/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -108,6 +109,18 @@
         "ext-chrome-shim.js",
         "core.js",
         "sites/guardian.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://ground.news/*"
+      ],
+      "js": [
+        "ext-chrome-shim.js",
+        "core.js",
+        "sites/groundnews.js",
         "content.js"
       ],
       "run_at": "document_idle"

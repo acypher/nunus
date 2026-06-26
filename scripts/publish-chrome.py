@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import subprocess
 import sys
 import uuid
 from pathlib import Path
@@ -127,6 +128,13 @@ def main() -> int:
         return 1
 
     print(f"Published {zip_path.name} to Chrome Web Store item {extension_id}")
+
+    version = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))["version"]
+    os.environ["NUNUS_PUBLISH_VERSION"] = str(version)
+    reminder = SCRIPT_DIR / "print-chrome-listing-reminder.py"
+    if reminder.is_file() and os.environ.get("CHROME_LISTING_REMINDER_SKIP", "").strip() != "1":
+        subprocess.run([sys.executable, str(reminder)], check=False)
+
     return 0
 
 

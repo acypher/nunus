@@ -46,3 +46,7 @@ if [[ -z "$signed" ]]; then
 fi
 
 echo "Signed and submitted to AMO ($channel): $signed"
+
+echo
+echo "== Patch AMO listing metadata =="
+python3 "$SCRIPT_DIR/patch-amo-listing.py"

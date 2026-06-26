@@ -721,17 +721,18 @@ async function run(site) {
       } else {
         for (const element of elements) articles.get(id).add(element);
       }
+      const allElements = [...articles.get(id)].filter(el => el.isConnected);
       if (isArticleViewed(viewedArticles, hostname, id)) {
-        await rememberArticleTitles(site, id, [...elements], sessionNow, hostname);
+        await rememberArticleTitles(site, id, allElements, sessionNow, hostname);
       }
-      const root = pickArticleRootForTopics([...elements]);
+      const root = pickArticleRootForTopics(allElements);
       const title = getArticleDisplayTitle(site, root, id);
       if (articleMatchesBlockTopics(site, root, title, blockTopics)) trackedIds.delete(id);
       else if (isArticleViewed(viewedArticles, hostname, id)) trackedIds.delete(id);
       else trackedIds.add(id);
       syncGrayForElements(
         site,
-        [...elements],
+        allElements,
         id,
         viewedArticles,
         sessionNow,

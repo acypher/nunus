@@ -153,15 +153,85 @@ class AppStoreConnectClient:
         )
         return created["data"]["id"]
 
-    def set_whats_new(self, version_id: str, whats_new: str, locale: str) -> None:
+    def set_version_localization(
+        self,
+        version_id: str,
+        locale: str,
+        *,
+        description: str | None = None,
+        whats_new: str | None = None,
+        promotional_text: str | None = None,
+    ) -> None:
         localization_id = self.ensure_localization(version_id, locale)
+        attributes: dict[str, str] = {}
+        if description is not None:
+            attributes["description"] = description
+        if whats_new is not None:
+            attributes["whatsNew"] = whats_new
+        if promotional_text is not None:
+            attributes["promotionalText"] = promotional_text
+        if not attributes:
+            return
         self.patch(
             f"/v1/appStoreVersionLocalizations/{localization_id}",
             {
                 "data": {
                     "type": "appStoreVersionLocalizations",
                     "id": localization_id,
-                    "attributes": {"whatsNew": whats_new},
+                    "attributes": attributes,
+                }
+            },
+        )
+
+    def set_whats_new(self, version_id: str, whats_new: str, locale: str) -> None:
+        self.set_version_localization(version_id, locale, whats_new=whats_new)
+
+    def app_info_for_version(self, app_id: str, version_row: dict[str, Any]) -> dict[str, Any] | None:
+        version_state = (version_row.get("attributes") or {}).get("appStoreState")
+        payload = self.get(f"/v1/apps/{app_id}/appInfos?limit=20")
+        for row in payload.get("data") or []:
+            if (row.get("attributes") or {}).get("appStoreState") == version_state:
+                return row
+        editable_states = {
+            "PREPARE_FOR_SUBMISSION",
+            "DEVELOPER_REJECTED",
+            "REJECTED",
+            "METADATA_REJECTED",
+            "INVALID_BINARY",
+        }
+        for row in payload.get("data") or []:
+            if (row.get("attributes") or {}).get("appStoreState") in editable_states:
+                return row
+        return None
+
+    def ensure_app_info_localization(self, app_info_id: str, locale: str) -> str:
+        payload = self.get(f"/v1/appInfos/{app_info_id}/appInfoLocalizations")
+        for row in payload.get("data") or []:
+            if (row.get("attributes") or {}).get("locale") == locale:
+                return row["id"]
+        created = self.post(
+            "/v1/appInfoLocalizations",
+            {
+                "data": {
+                    "type": "appInfoLocalizations",
+                    "attributes": {"locale": locale},
+                    "relationships": {
+                        "appInfo": {"data": {"type": "appInfos", "id": app_info_id}},
+                    },
+                }
+            },
+        )
+        return created["data"]["id"]
+
+    def set_app_info_subtitle(self, app_info_id: str, subtitle: str, locale: str) -> None:
+        localization_id = self.ensure_app_info_localization(app_info_id, locale)
+        self.patch(
+            f"/v1/appInfoLocalizations/{localization_id}",
+            {
+                "data": {
+                    "type": "appInfoLocalizations",
+                    "id": localization_id,
+                    "attributes": {"subtitle": subtitle},
                 }
             },
         )
@@ -174,18 +244,23 @@ class AppStoreConnectClient:
 
     def set_build_encryption_compliance(self, build_id: str, *, uses_non_exempt_encryption: bool = False) -> None:
         """Declare export compliance on a processed build (required before App Review)."""
-        self.patch(
-            f"/v1/builds/{build_id}",
-            {
-                "data": {
-                    "type": "builds",
-                    "id": build_id,
-                    "attributes": {
-                        "usesNonExemptEncryption": uses_non_exempt_encryption,
-                    },
-                }
-            },
-        )
+        try:
+            self.patch(
+                f"/v1/builds/{build_id}",
+                {
+                    "data": {
+                        "type": "builds",
+                        "id": build_id,
+                        "attributes": {
+                            "usesNonExemptEncryption": uses_non_exempt_encryption,
+                        },
+                    }
+                },
+            )
+        except AppStoreConnectError as exc:
+            if exc.status == 409:
+                return
+            raise
 
     def build_pre_release_version(self, build_id: str) -> str:
         payload = self.get(f"/v1/builds/{build_id}/preReleaseVersion")
