@@ -85,6 +85,13 @@ def idx(n):
     BF_PRIVACY_EXT_IOS,
 ) = [idx(i) for i in range(1, 74)]
 
+# iOS App Store signing (Release only; Debug stays Automatic for simulator/dev).
+# Overridable via env so a fresh checkout can point at different assets.
+IOS_TEAM = os.environ.get("APPLE_TEAM_ID", "3A5647GGDY")
+IOS_SIGN_IDENTITY = os.environ.get("IOS_SIGN_IDENTITY", "Apple Distribution")
+IOS_HOST_PROFILE = os.environ.get("IOS_HOST_PROFILE", "Nunus iOS App Store")
+IOS_EXT_PROFILE = os.environ.get("IOS_EXT_PROFILE", "Nunus iOS Extension App Store")
+
 out_path = os.path.join(os.path.dirname(__file__), "..", "NunusSafari.xcodeproj", "project.pbxproj")
 
 s = f"""// !$*UTF8*$!
@@ -505,7 +512,7 @@ s = f"""// !$*UTF8*$!
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = Host/NunusHost.entitlements;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 34;
+\t\t\t\tCURRENT_PROJECT_VERSION = 38;
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
 \t\t\t\tINFOPLIST_FILE = Host/Info.plist;
@@ -518,7 +525,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t);
 \t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
-\t\t\t\tMARKETING_VERSION = 4.0.9;
+\t\t\t\tMARKETING_VERSION = 4.1.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.acypher.Nunus;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = macosx;
@@ -532,7 +539,7 @@ s = f"""// !$*UTF8*$!
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = Host/NunusHost.entitlements;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 34;
+\t\t\t\tCURRENT_PROJECT_VERSION = 38;
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
 \t\t\t\tINFOPLIST_FILE = Host/Info.plist;
@@ -545,7 +552,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t);
 \t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
-\t\t\t\tMARKETING_VERSION = 4.0.9;
+\t\t\t\tMARKETING_VERSION = 4.1.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.acypher.Nunus;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = macosx;
@@ -559,7 +566,7 @@ s = f"""// !$*UTF8*$!
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = Extension/NunusExtension.entitlements;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 34;
+\t\t\t\tCURRENT_PROJECT_VERSION = 38;
 \t\t\t\tGENERATE_INFOPLIST_FILE = NO;
 \t\t\t\tINFOPLIST_FILE = Extension/Info.plist;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
@@ -570,7 +577,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/../../../../Frameworks",
 \t\t\t\t);
 \t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
-\t\t\t\tMARKETING_VERSION = 4.0.9;
+\t\t\t\tMARKETING_VERSION = 4.1.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.acypher.Nunus.NunusExtension;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = macosx;
@@ -585,7 +592,7 @@ s = f"""// !$*UTF8*$!
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = Extension/NunusExtension.entitlements;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 34;
+\t\t\t\tCURRENT_PROJECT_VERSION = 38;
 \t\t\t\tGENERATE_INFOPLIST_FILE = NO;
 \t\t\t\tINFOPLIST_FILE = Extension/Info.plist;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
@@ -596,7 +603,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/../../../../Frameworks",
 \t\t\t\t);
 \t\t\t\tMACOSX_DEPLOYMENT_TARGET = 14.0;
-\t\t\t\tMARKETING_VERSION = 4.0.9;
+\t\t\t\tMARKETING_VERSION = 4.1.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.acypher.Nunus.NunusExtension;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = macosx;
@@ -613,7 +620,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\tINFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = iOS/NunusHostIOS.entitlements;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 34;
+\t\t\t\tCURRENT_PROJECT_VERSION = 38;
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
@@ -627,7 +634,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 4.0.9;
+\t\t\t\tMARKETING_VERSION = 4.1.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.acypher.nunus.ios;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = iphoneos;
@@ -644,8 +651,12 @@ s = f"""// !$*UTF8*$!
 \t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tINFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = iOS/NunusHostIOS.entitlements;
-\t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 34;
+\t\t\t\tCODE_SIGN_IDENTITY = "{IOS_SIGN_IDENTITY}";
+\t\t\t\t"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "{IOS_SIGN_IDENTITY}";
+\t\t\t\tCODE_SIGN_STYLE = Manual;
+\t\t\t\tDEVELOPMENT_TEAM = {IOS_TEAM};
+\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{IOS_HOST_PROFILE}";
+\t\t\t\tCURRENT_PROJECT_VERSION = 38;
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
@@ -659,7 +670,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 4.0.9;
+\t\t\t\tMARKETING_VERSION = 4.1.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.acypher.nunus.ios;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = iphoneos;
@@ -675,7 +686,7 @@ s = f"""// !$*UTF8*$!
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = iOS/NunusExtensionIOS.entitlements;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 34;
+\t\t\t\tCURRENT_PROJECT_VERSION = 38;
 \t\t\t\tGENERATE_INFOPLIST_FILE = NO;
 \t\t\t\tINFOPLIST_FILE = Extension/Info.plist;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
@@ -686,7 +697,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t\t"@executable_path/../../Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 4.0.9;
+\t\t\t\tMARKETING_VERSION = 4.1.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.acypher.nunus.ios.extension;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = iphoneos;
@@ -702,8 +713,12 @@ s = f"""// !$*UTF8*$!
 \t\t\tisa = XCBuildConfiguration;
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = iOS/NunusExtensionIOS.entitlements;
-\t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 34;
+\t\t\t\tCODE_SIGN_IDENTITY = "{IOS_SIGN_IDENTITY}";
+\t\t\t\t"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "{IOS_SIGN_IDENTITY}";
+\t\t\t\tCODE_SIGN_STYLE = Manual;
+\t\t\t\tDEVELOPMENT_TEAM = {IOS_TEAM};
+\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{IOS_EXT_PROFILE}";
+\t\t\t\tCURRENT_PROJECT_VERSION = 38;
 \t\t\t\tGENERATE_INFOPLIST_FILE = NO;
 \t\t\t\tINFOPLIST_FILE = Extension/Info.plist;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Nunus;
@@ -714,7 +729,7 @@ s = f"""// !$*UTF8*$!
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t\t"@executable_path/../../Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 4.0.9;
+\t\t\t\tMARKETING_VERSION = 4.1.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.acypher.nunus.ios.extension;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = iphoneos;

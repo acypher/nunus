@@ -10,18 +10,19 @@
 set -eu
 WEBROOT="${NUNUS_WEBROOT:-${PROJECT_DIR}/..}"
 WRAPPER="${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}"
-# macOS .appex: Contents/Resources only. iOS .appex: Resources/ only — never the .appex
-# root, or codesign fails ("unsealed contents present in the bundle root").
+# macOS .appex is a deep bundle: resources go under Contents/Resources.
+# iOS .appex is a SHALLOW bundle: resources go at the bundle ROOT. Putting them in
+# a Resources/ subfolder makes codesign reject the whole bundle with
+# "bundle format unrecognized, invalid, or unsuitable" (a shallow bundle must not
+# contain a Resources/ directory). This matches Xcode's own iOS Copy Bundle
+# Resources behaviour, which writes to the appex root.
 case "${PLATFORM_NAME:-}" in
   macosx) OUT="${WRAPPER}/Contents/Resources" ;;
-  *)      OUT="${WRAPPER}/Resources" ;;
+  *)      OUT="${WRAPPER}" ;;
 esac
 if [ "${PLATFORM_NAME:-}" != "macosx" ]; then
-  rm -rf "${WRAPPER}/Contents" 2>/dev/null || true
-  for f in manifest.json popup.html popup.js core.js content.js background.js ext-chrome-shim.js; do
-    rm -f "${WRAPPER}/${f}"
-  done
-  rm -rf "${WRAPPER}/icons" "${WRAPPER}/sites"
+  # Clean any stale layout from earlier builds (deep Contents/ or a Resources/ subfolder).
+  rm -rf "${WRAPPER}/Contents" "${WRAPPER}/Resources" 2>/dev/null || true
 fi
 mkdir -p "${OUT}"
 for f in manifest.json popup.html popup.js core.js content.js background.js ext-chrome-shim.js; do

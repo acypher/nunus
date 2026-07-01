@@ -17,6 +17,13 @@ from app_store_connect import AppStoreConnectClient, AppStoreConnectError, load_
 from store_listing_copy import listing_description, listing_tagline  # noqa: E402
 
 MANIFEST = ROOT / "manifest.json"
+
+# Per-platform defaults: (App Store Connect platform, bundle-id env var, default bundle id, target label)
+PLATFORMS = {
+    "MAC_OS": ("MAC_OS", "MACOS_BUNDLE_ID", "com.acypher.Nunus", "NunusHost"),
+    "IOS": ("IOS", "IOS_BUNDLE_ID", "com.acypher.nunus.ios", "NunusHostIOS"),
+}
+
 EDITABLE_VERSION_STATES = {
     "PREPARE_FOR_SUBMISSION",
     "DEVELOPER_REJECTED",
@@ -43,8 +50,15 @@ def default_whats_new() -> str:
     return f"Nunus {manifest_version()}."
 
 
-def ensure_version_row(client: AppStoreConnectClient, app_id: str, version_string: str, *, dry_run: bool) -> dict:
-    existing = client.find_app_store_version(app_id, version_string)
+def ensure_version_row(
+    client: AppStoreConnectClient,
+    app_id: str,
+    version_string: str,
+    *,
+    platform: str,
+    dry_run: bool,
+) -> dict:
+    existing = client.find_app_store_version(app_id, version_string, platform)
     if existing:
         state = (existing.get("attributes") or {}).get("appStoreState", "UNKNOWN")
         if state in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE"}:
@@ -62,7 +76,7 @@ def ensure_version_row(client: AppStoreConnectClient, app_id: str, version_strin
         print(f"Would create App Store version {version_string}")
         return {"id": "DRY_RUN_VERSION_ID", "attributes": {"versionString": version_string}}
 
-    created = client.create_app_store_version(app_id, version_string)
+    created = client.create_app_store_version(app_id, version_string, platform)
     print(f"Created App Store version {version_string}")
     return created
 
@@ -82,27 +96,34 @@ def main() -> int:
         action="store_true",
         help="Do not wait for build processing; fail if no VALID build yet",
     )
+    parser.add_argument(
+        "--platform",
+        choices=sorted(PLATFORMS),
+        default=(os.environ.get("APP_STORE_PLATFORM", "MAC_OS").strip().upper() or "MAC_OS"),
+        help="App Store platform to submit (default: MAC_OS)",
+    )
     args = parser.parse_args()
 
     load_release_env(ROOT)
+    platform, bundle_env, bundle_default, target_label = PLATFORMS[args.platform]
     version_string = args.version or manifest_version()
     locale = os.environ.get("APP_STORE_LOCALE", "en-US").strip() or "en-US"
     whats_new = default_whats_new()
-    bundle_id = os.environ.get("MACOS_BUNDLE_ID", "").strip()
+    bundle_id = os.environ.get(bundle_env, "").strip() or bundle_default
 
-    print(f"== Submit NunusHost {version_string} for App Review ==")
+    print(f"== Submit {target_label} {version_string} for App Review ({platform}) ==")
 
     if args.dry_run:
         print("Dry run — would:")
-        print(f"  1. Resolve app {bundle_id or 'com.acypher.Nunus'}")
-        print(f"  2. Wait for VALID build matching {version_string}")
+        print(f"  1. Resolve app {bundle_id}")
+        print(f"  2. Wait for VALID {platform} build matching {version_string}")
         print(f"  3. Create or reuse App Store version {version_string}")
         print(f"  4. Attach build and set What's New ({locale})")
         print("  5. Create reviewSubmission and submit for review")
         return 0
 
     client = AppStoreConnectClient()
-    app_id = client.app_id(bundle_id or None)
+    app_id = client.app_id(bundle_id)
     print(f"App Store Connect app id: {app_id}")
 
     if args.skip_wait:
@@ -131,7 +152,7 @@ def main() -> int:
     build_number = (build_row.get("attributes") or {}).get("version")
     print(f"Using build {build_number} ({build_id})")
 
-    version_row = ensure_version_row(client, app_id, version_string, dry_run=False)
+    version_row = ensure_version_row(client, app_id, version_string, platform=platform, dry_run=False)
     version_id = version_row["id"]
 
     client.attach_build(version_id, build_id)

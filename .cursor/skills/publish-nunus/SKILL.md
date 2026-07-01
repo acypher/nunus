@@ -71,6 +71,58 @@ This builds `../nunus-<version>.zip`, `../nunus-<version>.xpi`, the Safari macOS
 
 When App Store Connect API credentials are configured, **Safari submit-for-review is automated** after upload (waits for build processing, creates/reuses the App Store version, attaches the build, sets What's New, submits via `reviewSubmissions` API). Set `APP_STORE_SKIP_SUBMIT=1` to upload only.
 
+## iOS Safari (iPhone/iPad) — included by default
+
+The iOS Safari extension ships as a **separate App Store app** (`com.acypher.nunus.ios`, Xcode target `NunusHostIOS`). `publish-stores.sh` includes it **by default**.
+
+```bash
+./scripts/publish-stores.sh                 # Chrome + Firefox + Safari macOS + Safari iOS
+./scripts/publish-stores.sh --no-ios        # skip iOS (or PUBLISH_INCLUDE_IOS=0)
+```
+
+**One-time prerequisite (only manual step):** the iOS app record must exist in App Store Connect. Apple's API cannot create app records — create it once in ASC (New App → iOS, bundle id `com.acypher.nunus.ios`), then this automation handles every subsequent release.
+
+iOS-only scripts (mirror the macOS trio) for a Safari-iOS-only run:
+
+```bash
+IPA="$(./scripts/build-safari-ios.sh | tail -1)"   # archive NunusHostIOS, export .ipa
+./scripts/publish-safari-ios.sh "$IPA"             # upload .ipa via altool
+./scripts/submit-safari-ios.sh                     # attach build + submit for review (platform IOS)
+```
+
+iOS uses the **same** Apple credentials as macOS; only `IOS_BUNDLE_ID` (default `com.acypher.nunus.ios`) differs.
+
+### iOS signing is fully headless (no GUI prompts)
+
+The iOS Release configs use **Manual** signing (Debug stays Automatic for the
+simulator). `build-safari-ios.sh` provisions everything itself:
+
+- **Bundle IDs**: `com.acypher.nunus.ios` + `.extension` (registered via ASC API).
+- **Certificate**: an *Apple Distribution* identity generated via the ASC API and
+  stored as a reusable `.p12` in `scripts/keys/ios-signing/` (gitignored). The
+  password is in `dist.p12.password` next to it.
+- **Profiles**: two *App Store* provisioning profiles (`Nunus iOS App Store`,
+  `Nunus iOS Extension App Store`) created via API and installed to
+  `~/Library/MobileDevice/Provisioning Profiles/`.
+- **Keychain**: the identity is imported into a dedicated, self-passworded
+  keychain at `safari/build/nunus-ios-signing.keychain-db` and authorized with
+  `set-key-partition-list`, so codesign never prompts the login keychain. The
+  login keychain stays in the search list for the Apple WWDR intermediate.
+
+If the `.p12` is missing (fresh checkout on a new machine), the script falls back
+to Automatic signing + `-allowProvisioningUpdates`. **Note:** Automatic archive
+signing needs a *development* profile, which fails on accounts with **no
+registered devices** ("Your team has no devices…") — that's why Manual signing is
+the default path.
+
+**Shallow-bundle gotcha (do not regress):** an iOS `.appex` is a *shallow* bundle,
+so web-extension resources must live at the appex **root**, never in a
+`Resources/` subfolder — a `Resources/` dir makes codesign reject the whole bundle
+("bundle format unrecognized, invalid, or unsuitable"). `copy-web-extension-resources.sh`
+writes to the root for iOS (and `Contents/Resources` for macOS).
+
+Pending/live checks (`check-store-pending.sh`, `check_store_live.py`) currently cover the macOS Safari app only.
+
 ## Full release (bump + git + publish)
 
 When the user wants a **new version** committed and tagged:

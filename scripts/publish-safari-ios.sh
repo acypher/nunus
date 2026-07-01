@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Upload an exported iOS .ipa to App Store Connect (mirrors publish-safari-mac.sh).
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=lib/load-release-env.sh
+source "$SCRIPT_DIR/lib/load-release-env.sh"
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: $(basename "$0") /path/to/NunusHostIOS.ipa" >&2
+  exit 1
+fi
+
+ipa="$1"
+if [[ ! -f "$ipa" ]]; then
+  echo "error: ipa not found: $ipa" >&2
+  exit 1
+fi
+
+upload_args=(--upload-app --type ios --file "$ipa")
+
+if [[ -n "${APP_STORE_CONNECT_API_KEY_ID:-}" ]]; then
+  for var in APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_PATH; do
+    if [[ -z "${!var:-}" ]]; then
+      echo "error: $var is required when using App Store Connect API keys" >&2
+      exit 1
+    fi
+  done
+  if [[ ! -f "$APP_STORE_CONNECT_API_KEY_PATH" ]]; then
+    echo "error: API key file not found: $APP_STORE_CONNECT_API_KEY_PATH" >&2
+    exit 1
+  fi
+  # Xcode 15+ altool: --api-key, --api-issuer, --p8-file-path
+  upload_args+=(--api-key "$APP_STORE_CONNECT_API_KEY_ID")
+  upload_args+=(--api-issuer "$APP_STORE_CONNECT_ISSUER_ID")
+  upload_args+=(--p8-file-path "$APP_STORE_CONNECT_API_KEY_PATH")
+elif [[ -n "${APPLE_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
+  upload_args+=(--username "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD")
+else
+  echo "error: set App Store Connect API key vars or APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD in scripts/release.env" >&2
+  exit 1
+fi
+
+echo "Uploading $ipa to App Store Connect..."
+xcrun altool "${upload_args[@]}"
+echo "Upload submitted. Processing continues in App Store Connect."

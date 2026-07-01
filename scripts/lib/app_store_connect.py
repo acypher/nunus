@@ -102,9 +102,11 @@ class AppStoreConnectClient:
             raise AppStoreConnectError(f"no App Store Connect app for bundle id {bundle}")
         return rows[0]["id"]
 
-    def find_app_store_version(self, app_id: str, version_string: str) -> dict[str, Any] | None:
+    def find_app_store_version(
+        self, app_id: str, version_string: str, platform: str = "MAC_OS"
+    ) -> dict[str, Any] | None:
         payload = self.get(
-            f"/v1/apps/{app_id}/appStoreVersions?filter[platform]=MAC_OS&limit=50"
+            f"/v1/apps/{app_id}/appStoreVersions?filter[platform]={parse.quote(platform)}&limit=50"
         )
         for row in payload.get("data") or []:
             attrs = row.get("attributes") or {}
@@ -112,14 +114,16 @@ class AppStoreConnectClient:
                 return row
         return None
 
-    def create_app_store_version(self, app_id: str, version_string: str) -> dict[str, Any]:
+    def create_app_store_version(
+        self, app_id: str, version_string: str, platform: str = "MAC_OS"
+    ) -> dict[str, Any]:
         payload = self.post(
             "/v1/appStoreVersions",
             {
                 "data": {
                     "type": "appStoreVersions",
                     "attributes": {
-                        "platform": "MAC_OS",
+                        "platform": platform,
                         "versionString": version_string,
                         "releaseType": "AFTER_APPROVAL",
                     },

@@ -69,6 +69,15 @@ if ! command -v xcodebuild >/dev/null 2>&1; then
   warn+=("xcodebuild (install Xcode)")
 fi
 
+section "Apple iOS App Store (Safari)"
+# iOS reuses the same Apple credentials as macOS; only the target app differs.
+ok+=("IOS_BUNDLE_ID (default: ${IOS_BUNDLE_ID:-com.acypher.nunus.ios})")
+if [[ "${PUBLISH_INCLUDE_IOS:-1}" == "0" ]]; then
+  ok+=("iOS skipped (PUBLISH_INCLUDE_IOS=0)")
+else
+  ok+=("iOS included by default (skip with --no-ios)")
+fi
+
 section "Summary"
 if ((${#ok[@]})); then
   echo "Configured:"
