@@ -134,6 +134,7 @@ Before publishing: `./scripts/check-store-pending.sh` (must exit 0). See **Publi
 - `sites/googlenews.js` - Google News (shipped in `manifest.json`)
 - `sites/guardian.js` - The Guardian (theguardian.com edition fronts; shipped in `manifest.json`)
 - `sites/groundnews.js` - Ground News (ground.news feeds; shipped in `manifest.json`)
+- `sites/epochtimes.js` - The Epoch Times (theepochtimes.com fronts; shipped in `manifest.json`)
 - `sites/washingtonpost.js` - work-in-progress handler (not in the current manifest)
 
 To ship a new publication, create or finish `sites/newsite.js`, register it in `content.js` and `manifest.json` (host permissions, content script matches, and script list), and release with **`--major`**.

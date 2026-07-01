@@ -62,11 +62,38 @@ function normalizeTitleMap(raw) {
   return out;
 }
 
+/** True when text is a URL or normalized URL key — never show these in article lists. */
+function isUrlLikeDisplayText(text) {
+  const s = String(text || '').trim();
+  if (!s) return false;
+  if (/^https?:\/\//i.test(s)) return true;
+  if (s.includes('://')) return true;
+  // normalizeArticleUrlKey shape: www.example.com/path/to/article
+  if (/^[a-z0-9.-]+\.[a-z]{2,}\//i.test(s)) return true;
+  return false;
+}
+
 function titlesForKey(titleMap, key, fallbackTitle) {
-  const titles = Array.isArray(titleMap[key]) ? titleMap[key] : [];
+  const titles = (Array.isArray(titleMap[key]) ? titleMap[key] : [])
+    .map(t => String(t).trim())
+    .filter(t => t && !isUrlLikeDisplayText(t));
   if (titles.length) return titles;
   const fallback = String(fallbackTitle || '').trim();
-  return fallback ? [fallback] : [];
+  if (fallback && !isUrlLikeDisplayText(fallback)) return [fallback];
+  return [];
+}
+
+function mergedTitleMap(...maps) {
+  const out = {};
+  for (const map of maps) {
+    if (!map || typeof map !== 'object') continue;
+    for (const [key, titles] of Object.entries(map)) {
+      if (!Array.isArray(titles)) continue;
+      const clean = titlesForKey({ [key]: titles }, key, '');
+      if (clean.length) out[key] = clean;
+    }
+  }
+  return out;
 }
 
 async function readTabSessionState(tabId) {
@@ -371,17 +398,20 @@ async function showNewlyViewedArticles(options = {}) {
 
   resultsEl.classList.add('expanded');
 
+  const local = await ext.storage.local.get({ [STORAGE_TITLES_KEY]: {} });
+  const persistentTitleMap = normalizeTitleMap(local[STORAGE_TITLES_KEY]);
   const sessionState = tabId != null
     ? await readTabSessionState(tabId)
     : { keys: [], titleMap: {} };
+  const displayTitleMap = mergedTitleMap(persistentTitleMap, sessionState.titleMap);
   // Newest session keys first; one row per observed title.
   const newlyTitles = [];
   const seenNewTitle = new Set();
   for (let i = sessionState.keys.length - 1; i >= 0; i--) {
     const key = sessionState.keys[i];
-    const { hostname: h, legacyTitle } = parseStoredKey(key);
+    const { hostname: h } = parseStoredKey(key);
     if (h !== hostname) continue;
-    const titles = titlesForKey(sessionState.titleMap, key, legacyTitle);
+    const titles = titlesForKey(displayTitleMap, key, '');
     for (let j = titles.length - 1; j >= 0; j--) {
       const title = titles[j];
       if (seenNewTitle.has(title)) continue;

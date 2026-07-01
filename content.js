@@ -105,6 +105,8 @@ function nunusInstallNytDebugOverlay(site) {
     site = window.NunusSites?.guardian;
   } else if (host.includes('ground.news')) {
     site = window.NunusSites?.groundnews;
+  } else if (host.includes('theepochtimes.com')) {
+    site = window.NunusSites?.epochtimes;
   }
 
   if (site && typeof window.NunusRun === 'function') {

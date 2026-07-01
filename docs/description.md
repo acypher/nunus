@@ -2,7 +2,7 @@
 
 Nunus grays out news headlines you have already seen, so what is actually new stands out when you check back.
 
-Nunus currently works on the home pages of The New York Times, Google News, The Guardian, and Ground News.
+Nunus currently works on the home pages of The New York Times, Google News, The Guardian, Ground News, and The Epoch Times.
 
 **What it does**
 

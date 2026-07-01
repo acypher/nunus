@@ -240,6 +240,7 @@ async function saveViewedState(viewed, sessionViewed) {
 function addTitleToMap(titleMap, key, title) {
   const t = String(title || '').trim().replace(/\s+/g, ' ');
   if (!key || !t) return false;
+  if (/^https?:\/\//i.test(t) || /^[a-z0-9.-]+\.[a-z]{2,}\//i.test(t)) return false;
   const titles = Array.isArray(titleMap[key]) ? titleMap[key] : [];
   if (titles.includes(t)) return false;
   titleMap[key] = [...titles, t];
@@ -275,7 +276,7 @@ async function rememberArticleTitles(site, articleId, elements, sessionViewed, h
   }
 }
 
-async function markAsViewed(site, articleId, canonicalRoot) {
+async function markAsViewed(site, articleId, canonicalRoot, allRoots) {
   const hostname = window.location.hostname;
   const key = getViewedKey(hostname, articleId);
   const viewed = await getViewed();
@@ -288,7 +289,10 @@ async function markAsViewed(site, articleId, canonicalRoot) {
   if (canonicalRoot instanceof Element) {
     sessionCanonicalRootByKey.set(key, canonicalRoot);
   }
-  await rememberArticleTitles(site, articleId, [canonicalRoot], sessionViewed, hostname);
+  const titleRoots = Array.isArray(allRoots) && allRoots.length
+    ? allRoots.filter(el => el instanceof Element && el.isConnected)
+    : [canonicalRoot];
+  await rememberArticleTitles(site, articleId, titleRoots, sessionViewed, hostname);
 }
 
 function applyViewedStyle(element) {
@@ -370,6 +374,35 @@ function removeTopicBlockedStyle(element) {
   element.style.filter = '';
   element.style.transition = '';
   delete element.dataset.nunusTopicBlocked;
+}
+
+/** Roots permanently grayed by site handler (never tracked or stored). */
+const alwaysGrayRootsTracked = new Set();
+
+function applyAlwaysGrayStyle(element) {
+  applyViewedStyle(element);
+  element.dataset.nunusAlwaysGray = 'true';
+}
+
+function removeAlwaysGrayStyle(element) {
+  if (element.dataset.nunusAlwaysGray !== 'true') return;
+  removeViewedStyle(element);
+  delete element.dataset.nunusAlwaysGray;
+}
+
+function syncAlwaysGrayRoots(site) {
+  if (typeof site.findAlwaysGrayRoots !== 'function') return;
+  const next = new Set(
+    site.findAlwaysGrayRoots().filter(el => el instanceof Element && el.isConnected)
+  );
+  for (const el of alwaysGrayRootsTracked) {
+    if (!next.has(el)) removeAlwaysGrayStyle(el);
+  }
+  alwaysGrayRootsTracked.clear();
+  for (const el of next) {
+    applyAlwaysGrayStyle(el);
+    alwaysGrayRootsTracked.add(el);
+  }
 }
 
 function syncGrayForElements(
@@ -740,6 +773,7 @@ async function run(site) {
         blockTopics
       );
     }
+    syncAlwaysGrayRoots(site);
   };
 
   // Sync gray from persistent storage vs this tab's session; strip when session has the key.
@@ -757,6 +791,7 @@ async function run(site) {
       blockTopics
     );
   }
+  syncAlwaysGrayRoots(site);
 
   try {
     ext.storage.onChanged.addListener((changes, area) => {
@@ -793,7 +828,7 @@ async function run(site) {
           trackedIds.delete(id);
           dwellStartById.delete(id);
           const canonical = visibleRoots[0];
-          await markAsViewed(site, id, canonical);
+          await markAsViewed(site, id, canonical, [...elements]);
           await mergeNewArticles();
         }
       } else {
