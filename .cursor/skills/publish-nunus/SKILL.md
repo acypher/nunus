@@ -115,6 +115,14 @@ signing needs a *development* profile, which fails on accounts with **no
 registered devices** ("Your team has no devices…") — that's why Manual signing is
 the default path.
 
+To (re)provision bundle IDs and App Store profiles headlessly (e.g. expired
+profiles or a fresh machine that has the `.p12`):
+
+```bash
+./scripts/ensure-ios-signing.sh                     # idempotent, via ASC API
+./scripts/ensure-ios-signing.sh --force-new-profiles
+```
+
 **Shallow-bundle gotcha (do not regress):** an iOS `.appex` is a *shallow* bundle,
 so web-extension resources must live at the appex **root**, never in a
 `Resources/` subfolder — a `Resources/` dir makes codesign reject the whole bundle

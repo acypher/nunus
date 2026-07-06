@@ -172,8 +172,17 @@ def main() -> int:
         client.set_app_info_subtitle(app_info["id"], listing_tagline(), locale)
         print(f"Updated App Store subtitle ({locale}): {listing_tagline()}")
 
-    client.set_whats_new(version_id, whats_new, locale)
-    print(f"Updated What's New ({locale})")
+    try:
+        client.set_whats_new(version_id, whats_new, locale)
+        print(f"Updated What's New ({locale})")
+    except AppStoreConnectError as exc:
+        # Apple sometimes rejects whatsNew edits on freshly created app records
+        # even while other localization fields are editable. Allow submission to
+        # continue in that case; the text can be set later in App Store Connect.
+        if exc.status == 409:
+            print(f"Skipped What's New ({locale}): not editable yet")
+        else:
+            raise
 
     client.submit_version_for_review(app_id, version_id)
     print(f"Submitted {version_string} for App Review")

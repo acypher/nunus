@@ -380,6 +380,112 @@ class AppStoreConnectClient:
             },
         )
 
+    # —— provisioning helpers (bundle IDs, certificates, profiles) ——
+
+    def delete(self, path: str) -> dict[str, Any]:
+        return self.request("DELETE", path)
+
+    def find_bundle_id(self, identifier: str) -> dict[str, Any] | None:
+        payload = self.get(f"/v1/bundleIds?filter[identifier]={parse.quote(identifier)}&limit=200")
+        for row in payload.get("data") or []:
+            if (row.get("attributes") or {}).get("identifier") == identifier:
+                return row
+        return None
+
+    def ensure_bundle_id(self, identifier: str, name: str, platform: str = "IOS") -> dict[str, Any]:
+        existing = self.find_bundle_id(identifier)
+        if existing:
+            return existing
+        created = self.post(
+            "/v1/bundleIds",
+            {
+                "data": {
+                    "type": "bundleIds",
+                    "attributes": {
+                        "identifier": identifier,
+                        "name": name,
+                        "platform": platform,
+                    },
+                }
+            },
+        )
+        return created["data"]
+
+    def distribution_certificates(self) -> list[dict[str, Any]]:
+        """Valid Apple Distribution certificates (usable for iOS App Store signing)."""
+        payload = self.get("/v1/certificates?filter[certificateType]=DISTRIBUTION&limit=200")
+        rows = payload.get("data") or []
+        now_ms = time.time() * 1000
+        valid = []
+        for row in rows:
+            attrs = row.get("attributes") or {}
+            expiration = attrs.get("expirationDate")
+            if expiration:
+                try:
+                    from datetime import datetime
+
+                    exp = datetime.fromisoformat(expiration.replace("Z", "+00:00"))
+                    if exp.timestamp() * 1000 < now_ms:
+                        continue
+                except ValueError:
+                    pass
+            valid.append(row)
+        return valid
+
+    def find_certificate_by_serial(self, serial: str) -> dict[str, Any] | None:
+        serial = serial.strip().upper().lstrip("0")
+        for row in self.distribution_certificates():
+            row_serial = ((row.get("attributes") or {}).get("serialNumber") or "").upper().lstrip("0")
+            if row_serial == serial:
+                return row
+        return None
+
+    def find_profile(self, name: str) -> dict[str, Any] | None:
+        payload = self.get(f"/v1/profiles?filter[name]={parse.quote(name)}&limit=200")
+        for row in payload.get("data") or []:
+            if (row.get("attributes") or {}).get("name") == name:
+                return row
+        return None
+
+    def delete_profile(self, profile_id: str) -> None:
+        self.delete(f"/v1/profiles/{profile_id}")
+
+    def create_profile(
+        self,
+        name: str,
+        bundle_id_resource: str,
+        certificate_ids: list[str],
+        profile_type: str = "IOS_APP_STORE",
+    ) -> dict[str, Any]:
+        created = self.post(
+            "/v1/profiles",
+            {
+                "data": {
+                    "type": "profiles",
+                    "attributes": {"name": name, "profileType": profile_type},
+                    "relationships": {
+                        "bundleId": {"data": {"type": "bundleIds", "id": bundle_id_resource}},
+                        "certificates": {
+                            "data": [{"type": "certificates", "id": cid} for cid in certificate_ids]
+                        },
+                    },
+                }
+            },
+        )
+        return created["data"]
+
+    def profile_content(self, profile_row: dict[str, Any]) -> bytes:
+        """Decode the base64 .mobileprovision payload from a profile resource."""
+        import base64
+
+        content = (profile_row.get("attributes") or {}).get("profileContent")
+        if not content:
+            profile_row = self.get(f"/v1/profiles/{profile_row['id']}").get("data") or {}
+            content = (profile_row.get("attributes") or {}).get("profileContent")
+        if not content:
+            raise AppStoreConnectError(f"profile {profile_row.get('id')} has no profileContent")
+        return base64.b64decode(content)
+
 
 def load_release_env(root: Path) -> None:
     env_file = Path(os.environ.get("NUNUS_RELEASE_ENV", root / "scripts" / "release.env"))
