@@ -8,10 +8,6 @@ Nunus currently works on the home pages of The New York Times, Google News, The 
 
 When you revisit a supported news site, Nunus automatically grays out headlines you have already seen, so new stories stand out immediately.
 
-**Keyboard shortcut**
-
-Press Option + ↓ (Mac) to jump straight to the next unseen headline on the page.
-
 **How “already seen” is defined**
 
 A headline counts as seen once it has been on your screen for a few seconds. You do not need to click through to the article. If the same story appears more than once on the page, later copies gray out right away. If a site tweaks the wording links to the same article, it still counts as seen.

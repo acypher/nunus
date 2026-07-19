@@ -2,7 +2,7 @@
 
 **Effective date:** April 9, 2026
 
-Nunus — *Read only the news that's new* — is a browser extension that grays out news headlines you have already seen. It does not collect, transmit, or share any personal data.
+Nunus — *Read only the news that's new* — is a browser extension for Safari (iOS and Mac), Chrome, and Firefox. It grays out news headlines you have already seen. It does not collect, transmit, or share any personal data.
 
 ## Data stored locally
 
@@ -25,4 +25,4 @@ If this policy changes, the updated version will be posted at this same URL.
 
 ## Contact
 
-If you have questions about this policy, open an issue on the [Nunus GitHub repository](https://github.com/acypher/NunusCursor).
+Questions about this policy: email [code@acypher.com](mailto:code@acypher.com) or see [Nunus Support](support.md).

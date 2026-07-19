@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "4.2.0",
+  "version": "4.2.13",
   "description": "Read only the news that's new. Gray out headlines you've already seen on the news sites you follow.",
   "browser_specific_settings": {
     "gecko": {
@@ -28,9 +28,8 @@
     "https://www.nytimes.com/?*",
     "https://nytimes.com/",
     "https://nytimes.com/?*",
-    "https://*.nytimes.com/",
-    "https://*.nytimes.com/?*",
-    "https://news.google.com/*",
+    "https://news.google.com/",
+    "https://news.google.com/?*",
     "https://www.theguardian.com/",
     "https://www.theguardian.com/?*",
     "https://www.theguardian.com/us",
@@ -45,9 +44,12 @@
     "https://www.theguardian.com/international?*",
     "https://theguardian.com/",
     "https://theguardian.com/?*",
-    "https://ground.news/*",
-    "https://www.theepochtimes.com/*",
-    "https://theepochtimes.com/*"
+    "https://ground.news/",
+    "https://ground.news/?*",
+    "https://www.theepochtimes.com/",
+    "https://www.theepochtimes.com/?*",
+    "https://theepochtimes.com/",
+    "https://theepochtimes.com/?*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -66,9 +68,7 @@
         "https://www.nytimes.com/",
         "https://www.nytimes.com/?*",
         "https://nytimes.com/",
-        "https://nytimes.com/?*",
-        "https://*.nytimes.com/",
-        "https://*.nytimes.com/?*"
+        "https://nytimes.com/?*"
       ],
       "js": [
         "ext-chrome-shim.js",
@@ -80,7 +80,8 @@
     },
     {
       "matches": [
-        "https://news.google.com/*"
+        "https://news.google.com/",
+        "https://news.google.com/?*"
       ],
       "js": [
         "ext-chrome-shim.js",
@@ -117,7 +118,8 @@
     },
     {
       "matches": [
-        "https://ground.news/*"
+        "https://ground.news/",
+        "https://ground.news/?*"
       ],
       "js": [
         "ext-chrome-shim.js",
@@ -129,8 +131,10 @@
     },
     {
       "matches": [
-        "https://www.theepochtimes.com/*",
-        "https://theepochtimes.com/*"
+        "https://www.theepochtimes.com/",
+        "https://www.theepochtimes.com/?*",
+        "https://theepochtimes.com/",
+        "https://theepochtimes.com/?*"
       ],
       "js": [
         "ext-chrome-shim.js",
