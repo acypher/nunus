@@ -3,9 +3,12 @@
  * Selectors derived from samples in samples/nytimes/ (homepage DOM captures).
  *
  * Article root: Vi homepage “story list item” wrappers (data-tpl="sli"),
- * section.story-wrapper heroes, and bottom rails: [data-testid$="-section"] article.
+ * section.story-wrapper heroes, Live band rows (#hp-live-band-list), and bottom rails:
+ * [data-testid$="-section"] article.
  * Title: headline slot [data-tpl="h"], label link [data-tpl="l"], or .indicate-hover.
- * URL: canonical article identity; title: display metadata.
+ * URL: canonical identity from in-root / wrapping <a>, or desktop lockup overlay
+ * <a> under [data-tpl="lb"] (sibling of the sli grid — no link inside the headline).
+ * Title is display metadata.
  */
 (function() {
   const DATE_ARTICLE_PATH = /\/\d{4}\/\d{1,2}\/\d{1,2}\//;
@@ -87,25 +90,51 @@
     return isNytArticleUrl(a.href);
   }
 
-  function rootHasArticleAnchor(root) {
+  /**
+   * Desktop Vi heroes put the click target on an empty overlay <a> that is a
+   * direct child of [data-tpl="lb"], sibling to the grid that holds the sli —
+   * so the headline lives in the sli with no descendant (or wrapping) <a>.
+   * Narrow layouts instead wrap the title in a[data-tpl="l"] inside the sli.
+   */
+  function lockupOverlayArticleAnchor(root) {
+    if (!root) return null;
+    const lb = root.closest('[data-tpl="lb"]');
+    if (!lb) return null;
+    for (const child of lb.children) {
+      if (child.tagName === 'A' && anchorLooksLikeArticle(child)) return child;
+    }
+    return null;
+  }
+
+  function articleAnchorForRoot(root) {
+    if (!root) return null;
     for (const a of root.querySelectorAll('a[href]')) {
-      if (anchorLooksLikeArticle(a)) return true;
+      if (anchorLooksLikeArticle(a)) return a;
     }
     // Carousel (and similar): the card link wraps the story-wrapper from outside,
     // so no article <a> is a descendant of the sli root.
     const wrap = root.closest('a[href]');
-    if (wrap && anchorLooksLikeArticle(wrap)) return true;
-    return false;
+    if (wrap && anchorLooksLikeArticle(wrap)) return wrap;
+    return lockupOverlayArticleAnchor(root);
+  }
+
+  function rootHasArticleAnchor(root) {
+    return !!articleAnchorForRoot(root);
   }
 
   function getArticleUrl(root) {
     if (!root) return null;
-    for (const a of root.querySelectorAll('a[href]')) {
-      if (anchorLooksLikeArticle(a)) return a.href;
+    // nyt-video-feed items have no article anchor; synthesize a stable ID from title.
+    const headlineEl = root.querySelector('[class*="_headline-container_"] p');
+    if (headlineEl) {
+      const t = normalizeTitle(headlineEl.textContent);
+      if (t) {
+        const slug = t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        return `https://www.nytimes.com/video-feed/${slug}`;
+      }
     }
-    const wrap = root.closest('a[href]');
-    if (wrap && anchorLooksLikeArticle(wrap)) return wrap.href;
-    return null;
+    const a = articleAnchorForRoot(root);
+    return a ? a.href : null;
   }
 
   function rectIntersectionArea(a, b) {
@@ -189,6 +218,12 @@
    * Category + headline in [data-tpl="h"]: <p>Section</p><p class="indicate-hover">Title</p>
    */
   function getTitleFromRoot(root) {
+    // nyt-video-feed item: title in headline container, no article link.
+    const headlineEl = root.querySelector('[class*="_headline-container_"] p');
+    if (headlineEl) {
+      const t = normalizeTitle(headlineEl.textContent);
+      if (t) return t;
+    }
     const hSlot = root.querySelector('[data-tpl="h"]');
     if (hSlot) {
       const lblInH = hSlot.querySelector('a[data-tpl="l"]');
@@ -244,6 +279,9 @@
    * DOM nodes used for “title visible” timing — same precedence as getTitleFromRoot.
    */
   function getVisibilityTargets(root) {
+    // nyt-video-feed item: use the headline <p> as the visibility target.
+    const headlineEl = root.querySelector('[class*="_headline-container_"] p');
+    if (headlineEl && normalizeTitle(headlineEl.textContent)) return [headlineEl];
     const hSlot = root.querySelector('[data-tpl="h"]');
     if (hSlot) {
       const lblInH = hSlot.querySelector('a[data-tpl="l"]');
@@ -319,6 +357,24 @@
     for (const el of queryAll(document, 'section[data-tpl="lb"]')) {
       if (el.querySelector('.story-wrapper')) continue;
       if (rootHasArticleAnchor(el)) candidates.add(el);
+    }
+    // Live band: <ul id="hp-live-band-list"><li><a><p class="indicate-hover"> — no story-wrapper.
+    for (const a of queryAll(document, '#hp-live-band-list a[href]')) {
+      if (!anchorLooksLikeArticle(a)) continue;
+      candidates.add(a.closest('li') || a);
+    }
+    // nyt-video-feed carousel: article[data-testid="feed-item"] live in the component shadow DOM.
+    // Only collect items currently visible in the carousel (user doesn't care about off-screen slides).
+    for (const feed of document.querySelectorAll('nyt-video-feed')) {
+      const sr = feed.shadowRoot;
+      if (!sr) continue;
+      for (const el of sr.querySelectorAll('article[data-testid="feed-item"]')) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 20) continue;
+        // Skip items scrolled outside the viewport horizontally.
+        if (rect.right <= 0 || rect.left >= window.innerWidth) continue;
+        candidates.add(el);
+      }
     }
 
     // When the main card link is section > a > … > div.story-wrapper[data-tpl="sli"],

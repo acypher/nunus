@@ -7,10 +7,17 @@ alwaysApply: true
 
 The repo owner is the only developer. Keep git simple:
 
+- **Always commit after editing project files** in a turn (the code/docs/rules
+  you changed, plus any patch version bump). Do not leave those edits uncommitted
+  or wait to be asked. This overrides generic “only commit when requested” guidance.
 - **Commit directly to `main`.** Do not create feature branches, pull requests, or
   patch branches. Just change `main`.
 - **Do not create git tags** unless the user explicitly asks.
-- Push to `origin main`.
+- **Push to `origin main`** after that commit (same turn), unless the user said not
+  to push.
 
 This applies to all version bumps, fixes, and routine changes. Reserve heavier
 flows (tags, store packaging) for when the user explicitly invokes them.
+
+Do not sweep unrelated pre-existing dirty files into the commit unless the user
+asked to ship/commit everything.
