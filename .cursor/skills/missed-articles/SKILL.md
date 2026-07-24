@@ -70,6 +70,59 @@ Do **not** stop at reporting. Fix them in the same turn, within these caps:
 
 Say **OK — no Missed Articles** for the site(s) checked. Do not invent work.
 
+## Daily run report (iMessage)
+
+After every scheduled (or manual) Missed Articles run, send a short **iMessage**
+report — including when the count is zero.
+
+### Report contents
+
+1. **Found:** number of Missed Articles from the checker (before fixes)
+2. **Fixed:** number successfully fixed in this run
+3. **Titles:** every problem’s headline (all found titles, not only fixed). Mark
+   fixed / deferred (daily cap) / abandoned (2-rerun limit) when useful.
+
+Example body:
+
+```
+Nunus Missed Articles — 2026-07-24
+Found: 3
+Fixed: 2
+
+• First Girls' Polo Team Breaks With Tradition, but Keeps the Goat Carcass (fixed)
+• 'We're Trapped in Hell': Iranians Say Life Is Put on Hold by Months of War (fixed)
+• In 'The Odyssey' and 'Oppenheimer,' Nolan Knows Civilization Is at Stake (deferred — daily cap)
+```
+
+Zero-miss example:
+
+```
+Nunus Missed Articles — 2026-07-24
+Found: 0
+Fixed: 0
+```
+
+### How to send
+
+```bash
+./scripts/send-imessage.sh "$(cat <<EOF
+Nunus Missed Articles — $(date +%Y-%m-%d)
+Found: N
+Fixed: M
+
+• Title one (fixed)
+• Title two (abandoned — 2 re-runs)
+EOF
+)"
+```
+
+Recipient is `MISSED_ARTICLES_IMESSAGE_TO` in `scripts/release.env` (gitignored).
+Disable temporarily with `MISSED_ARTICLES_IMESSAGE=0`.
+
+**Requires macOS Messages.app** on the machine running the agent (signed in to
+iMessage). Cloud-only runners cannot send iMessage — if send fails, say so in
+the chat summary and still print the same report text there.
+
 ## Scope (v1)
 
 - **nyt** homepage only (`https://www.nytimes.com/`)
@@ -82,3 +135,4 @@ Say **OK — no Missed Articles** for the site(s) checked. Do not invent work.
 |------|------|
 | NYT detector | `sites/nyt.js` (`findMissedArticles`, `findArticles`) |
 | Checker | `scripts/check-missed-articles.py` |
+| iMessage | `scripts/send-imessage.sh` |
