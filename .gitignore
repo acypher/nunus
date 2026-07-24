@@ -17,6 +17,7 @@ safari/NunusSafari (from backup).xcodeproj/
 
 # Daily publish-check watcher state and logs
 scripts/.publish-check-watch.json
+scripts/.missed-articles-daily.json
 scripts/logs/
 
 # Python bytecode caches

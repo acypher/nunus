@@ -119,9 +119,28 @@ EOF
 Recipient is `MISSED_ARTICLES_IMESSAGE_TO` in `scripts/release.env` (gitignored).
 Disable temporarily with `MISSED_ARTICLES_IMESSAGE=0`.
 
-**Requires macOS Messages.app** on the machine running the agent (signed in to
-iMessage). Cloud-only runners cannot send iMessage — if send fails, say so in
-the chat summary and still print the same report text there.
+**Requires macOS Messages.app** on the machine running the job.
+
+When `MISSED_ARTICLES_DAILY_WRAPPER=1` (set by the local LaunchAgent runner),
+**skip** sending iMessage yourself — the daily wrapper sends one definitive
+report after you finish.
+
+## Local daily schedule (not cloud)
+
+Prefer the Mac LaunchAgent (Messages + Playwright + local Cursor agent):
+
+```bash
+./scripts/setup-missed-articles-daily.sh          # arm 7:00 AM local
+./scripts/setup-missed-articles-daily.sh --status
+./scripts/setup-missed-articles-daily.sh --run-now
+./scripts/setup-missed-articles-daily.sh --stop
+```
+
+Override hour with `MISSED_ARTICLES_HOUR` / `MISSED_ARTICLES_MINUTE` in
+`release.env`. For auto-fixes, run `cursor agent login` once on this Mac.
+
+**Turn off** any Cursor cloud Automation for Missed Articles so you do not get
+duplicate cloud runs.
 
 ## Scope (v1)
 
@@ -136,3 +155,4 @@ the chat summary and still print the same report text there.
 | NYT detector | `sites/nyt.js` (`findMissedArticles`, `findArticles`) |
 | Checker | `scripts/check-missed-articles.py` |
 | iMessage | `scripts/send-imessage.sh` |
+| Daily local job | `scripts/setup-missed-articles-daily.sh` |
