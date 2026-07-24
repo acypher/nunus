@@ -43,20 +43,28 @@ Polo / Iran / Odyssey misses are in scope.
 
 ## When misses are found — fix with subagents
 
-Do **not** stop at reporting. Fix them in the same turn:
+Do **not** stop at reporting. Fix them in the same turn, within these caps:
+
+### Limits (hard)
+
+| Cap | Rule |
+|-----|------|
+| **4 fixes / day** | Fix at most **4** distinct Missed Articles (by canonical URL) in one calendar day. If more are listed, fix the first 4 (document order / checker order) and leave the rest for a later run. |
+| **2 re-runs / article** | For each Missed Article, after a code change you may re-run `./scripts/check-missed-articles.sh` at most **twice** while iterating on that article. If it still appears after two re-runs, **stop** on that URL: record title/url + brief DOM note, do not keep patching it in this turn. |
 
 1. Launch one or more **Task** subagents (`generalPurpose` or `explore` + fix)
-   with the missed `{title, url}` list and instructions to:
+   with the missed `{title, url}` list (**at most 4 URLs**) and instructions to:
    - Open the live homepage at ~1280×720
    - Inspect DOM for each miss (where the title and URL live relative to
      `story-wrapper` / `data-tpl="sli"` / `data-tpl="lb"` overlay links)
    - Patch `sites/<site>.js` so `findArticles()` includes those URLs
-   - Re-run `./scripts/check-missed-articles.sh` until exit 0 (or explain
-     remaining false positives)
+   - Re-run the checker at most **twice per article** (see Limits); then move on
 2. Prefer **one fix agent** for a batch of related misses on the same site;
    split only if misses look like unrelated markup patterns.
 3. After a successful fix: bump patch version (agent-patch-version), commit to
    `main`, and push (`git-workflow`).
+4. If some misses remain because of the daily cap or the two-re-run give-up
+   rule, say so clearly in the summary (titles + why deferred/abandoned).
 
 ## When the check is clean
 
