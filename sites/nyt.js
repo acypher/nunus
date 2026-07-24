@@ -432,6 +432,125 @@
     return articles;
   }
 
+  function canonicalArticleId(href) {
+    const u = resolveArticleUrl(href);
+    if (!u || !isNytimesHost(u.hostname)) return null;
+    u.hash = '';
+    u.search = '';
+    let path = u.pathname || '/';
+    if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
+    // Hub landing pages, not stories.
+    if (path === '/wirecutter' || path === '/athletic') return null;
+    return `${u.protocol}//${u.host}${path}`;
+  }
+
+  /**
+   * Story roots to consider for Missed Articles — same shapes as collectStoryRoots,
+   * but include cards even when the article <a> is a sibling overlay (pre-fix DOM).
+   */
+  function collectOracleStoryRoots() {
+    const candidates = new Set();
+    for (const el of queryAll(document, 'div.story-wrapper[data-tpl="sli"]')) {
+      candidates.add(el);
+    }
+    for (const el of queryAll(document, 'div.story-wrapper')) {
+      candidates.add(el);
+    }
+    for (const el of queryAll(document, 'section.story-wrapper')) {
+      if (el.querySelector('div.story-wrapper')) continue;
+      candidates.add(el);
+    }
+    for (const el of queryAll(document, '[data-testid$="-section"] article')) {
+      candidates.add(el);
+    }
+    for (const li of queryAll(document, 'li')) {
+      for (const el of li.querySelectorAll('article')) {
+        if (!el.querySelector('.assetWrapper')) continue;
+        candidates.add(el);
+      }
+    }
+    for (const el of queryAll(document, 'section[data-tpl="lb"]')) {
+      if (el.querySelector('.story-wrapper')) continue;
+      candidates.add(el);
+    }
+    for (const a of queryAll(document, '#hp-live-band-list a[href]')) {
+      if (!anchorLooksLikeArticle(a)) continue;
+      candidates.add(a.closest('li') || a);
+    }
+    for (const feed of document.querySelectorAll('nyt-video-feed')) {
+      const sr = feed.shadowRoot;
+      if (!sr) continue;
+      for (const el of sr.querySelectorAll('article[data-testid="feed-item"]')) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 20) continue;
+        if (rect.right <= 0 || rect.left >= window.innerWidth) continue;
+        candidates.add(el);
+      }
+    }
+    for (const el of [...candidates]) {
+      if (
+        el.tagName === 'SECTION' &&
+        el.classList.contains('story-wrapper') &&
+        el.querySelector('div.story-wrapper[data-tpl="sli"]')
+      ) {
+        candidates.delete(el);
+      }
+    }
+    return [...candidates];
+  }
+
+  /**
+   * Layout-aware Missed Articles: story-card roots with a headline whose URL is
+   * missing from findArticles() (or cannot be resolved). Ignores bare teaser
+   * <a> strips that are not story wrappers — those are noisy false positives.
+   */
+  function findMissedArticles() {
+    const detected = new Set();
+    for (const raw of findArticles().keys()) {
+      const id = canonicalArticleId(raw);
+      if (id) detected.add(id);
+    }
+
+    const missedByUrl = new Map();
+    const orphanTitles = [];
+
+    for (const root of collectOracleStoryRoots()) {
+      if (isArticleRootEffectivelyHidden(root)) continue;
+      const title = getTitleFromRoot(root);
+      if (!title || title.length < 20) continue;
+      if (/›\s*$/.test(title)) continue;
+
+      const rawUrl = getArticleUrl(root);
+      const url = rawUrl ? canonicalArticleId(rawUrl) : null;
+      if (!url) {
+        orphanTitles.push({ url: null, title, reason: 'no-url' });
+        continue;
+      }
+      if (detected.has(url)) continue;
+      if (!missedByUrl.has(url)) {
+        missedByUrl.set(url, { url, title, reason: 'not-detected' });
+      }
+    }
+
+    const missed = [...missedByUrl.values(), ...orphanTitles];
+    missed.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    return missed;
+  }
+
+  function collectCandidateArticles() {
+    const byUrl = new Map();
+    for (const root of collectOracleStoryRoots()) {
+      if (isArticleRootEffectivelyHidden(root)) continue;
+      const title = getTitleFromRoot(root);
+      if (!title || title.length < 20) continue;
+      const rawUrl = getArticleUrl(root);
+      const url = rawUrl ? canonicalArticleId(rawUrl) : null;
+      if (!url) continue;
+      if (!byUrl.has(url)) byUrl.set(url, { url, title });
+    }
+    return byUrl;
+  }
+
   function isHomepage() {
     const path = window.location.pathname;
     return path === '/' || path === '' || path === '/index.html';
@@ -440,10 +559,13 @@
   window.NunusSites = window.NunusSites || {};
   window.NunusSites.nyt = {
     findArticles,
+    findMissedArticles,
+    collectCandidateArticles,
     isHomepage,
     getVisibilityTargets,
     getBlockTopicHaystack,
     getArticleUrl,
-    getArticleTitle: getTitleFromRoot
+    getArticleTitle: getTitleFromRoot,
+    canonicalArticleId
   };
 })();
