@@ -268,11 +268,20 @@ def run_daily() -> int:
     titles: list[tuple[str, str]] = []
     try:
         after = run_checker_json() if found > 0 else before
-        remaining_urls = {m.get("url") for m in (after.get("missed") or [])}
+        remaining = after.get("missed") or []
+        remaining_urls = {m.get("url") for m in remaining if m.get("url")}
+        remaining_titles = {
+            (m.get("title") or "").strip() for m in remaining if (m.get("title") or "").strip()
+        }
         for item in missed:
             title = (item.get("title") or "").strip() or "(untitled)"
             url = item.get("url")
-            if url and url not in remaining_urls:
+            # Null-URL orphans (reason no-url) have nothing in remaining_urls;
+            # treat disappearance of the title as fixed.
+            resolved = (url and url not in remaining_urls) or (
+                not url and title not in remaining_titles
+            )
+            if resolved:
                 titles.append((title, "fixed"))
                 fixed += 1
             elif found > 0 and agent_rc not in (0, None) and agent_rc == 2:
