@@ -502,6 +502,41 @@
   }
 
   /**
+   * Newsletter signup promos use the same sli / story-wrapper chrome as stories
+   * but link to /newsletters/… (rejected by isNytArticleUrl → no-url orphans).
+   */
+  function isNewsletterSignupRoot(root) {
+    if (!root) return false;
+    const isNewsletterHref = (href) => {
+      const u = resolveArticleUrl(href);
+      return !!(
+        u &&
+        isNytimesHost(u.hostname) &&
+        (u.pathname === '/newsletters' || u.pathname.startsWith('/newsletters/'))
+      );
+    };
+    for (const a of root.querySelectorAll('a[href]')) {
+      if (isNewsletterHref(a.getAttribute('href') || a.href)) return true;
+    }
+    const wrap = root.closest('a[href]');
+    if (wrap && isNewsletterHref(wrap.getAttribute('href') || wrap.href)) {
+      return true;
+    }
+    const lb = root.closest('[data-tpl="lb"]');
+    if (lb) {
+      for (const child of lb.children) {
+        if (
+          child.tagName === 'A' &&
+          isNewsletterHref(child.getAttribute('href') || child.href)
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
    * Layout-aware Missed Articles: story-card roots with a headline whose URL is
    * missing from findArticles() (or cannot be resolved). Ignores bare teaser
    * <a> strips that are not story wrappers — those are noisy false positives.
@@ -518,6 +553,7 @@
 
     for (const root of collectOracleStoryRoots()) {
       if (isArticleRootEffectivelyHidden(root)) continue;
+      if (isNewsletterSignupRoot(root)) continue;
       const title = getTitleFromRoot(root);
       if (!title || title.length < 20) continue;
       if (/›\s*$/.test(title)) continue;
