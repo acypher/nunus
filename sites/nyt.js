@@ -594,6 +594,468 @@
     return path === '/' || path === '' || path === '/index.html';
   }
 
+  /* —— Opinions homepage summaries (fetch + extract; no LLM) —— */
+
+  const OPINION_SUMMARY_STORAGE_KEY = 'nunus_nyt_opinion_summaries';
+  const OPINION_SUMMARY_CLASS = 'nunus-opinion-summary';
+  const OPINION_SUMMARY_MAX_PARALLEL = 4;
+  const OPINION_SUMMARY_MAX_CHARS = 280;
+  const OPINION_SUMMARY_MIN_CHARS = 20;
+
+  /** In-memory cache: canonicalUrl -> { summary, ts } | { failed: true, ts } */
+  const opinionSummaryMem = new Map();
+  let opinionSummaryStorageLoaded = false;
+  let opinionSummaryPersistTimer = null;
+  let opinionSummaryQueue = [];
+  let opinionSummaryActive = 0;
+  let opinionSummaryObserverStarted = false;
+
+  function opinionExt() {
+    return globalThis.browser ?? globalThis.chrome;
+  }
+
+  function isOpinionArticleUrl(href) {
+    const u = resolveArticleUrl(href);
+    if (!u || !isNytimesHost(u.hostname)) return false;
+    return (
+      u.pathname.includes('/opinion/') ||
+      u.pathname.startsWith('/section/opinion')
+    );
+  }
+
+  /**
+   * Opinions cards sometimes put the click target on a sibling overlay <a> under
+   * the surrounding section.story-wrapper / [data-tpl="lb"], not inside the sli.
+   */
+  function getArticleUrlForOpinionCard(root) {
+    const direct = getArticleUrl(root);
+    if (direct) return direct;
+    if (!root) return null;
+    const scope =
+      root.closest('section.story-wrapper') ||
+      root.closest('[data-tpl="lb"]') ||
+      root.parentElement;
+    if (!scope || scope === root) return null;
+    for (const a of scope.querySelectorAll('a[href]')) {
+      if (root.contains(a)) continue;
+      if (anchorLooksLikeArticle(a)) return a.href;
+    }
+    return null;
+  }
+
+  /**
+   * Homepage “Opinions” block: climb from #large-opinion-label / .g-large-opinion-label
+   * to the smallest ancestor that also contains story cards.
+   */
+  function findOpinionsSectionContainer() {
+    const label =
+      document.getElementById('large-opinion-label') ||
+      document.querySelector('.g-large-opinion-label') ||
+      [...document.querySelectorAll('a[href*="/section/opinion"]')].find(a => {
+        const t = (a.textContent || '').replace(/\s+/g, ' ').trim();
+        return /^opinions?$/i.test(t);
+      });
+    if (!label) return null;
+
+    // Climb to the smallest ancestor that contains story cards, but stop before
+    // the homepage programming zone (it also mixes later non-Opinion rails).
+    let node = label.parentElement;
+    while (node && node !== document.body) {
+      if (
+        node.getAttribute('data-testid') === 'programming-node' ||
+        node.getAttribute('data-hierarchy') === 'zone'
+      ) {
+        return null;
+      }
+      const hasStories = !!(
+        node.querySelector('div.story-wrapper[data-tpl="sli"]') ||
+        node.querySelector('section.story-wrapper')
+      );
+      if (hasStories) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  function collectOpinionsSectionRoots() {
+    const section = findOpinionsSectionContainer();
+    if (!section) return [];
+
+    // Prefer the same roots findArticles() uses (Newly Viewed / gray-out), narrowed
+    // to the Opinions block — so we never summarize a different card set than tracking.
+    const fromFind = [];
+    for (const [, roots] of findArticles()) {
+      for (const root of roots) {
+        if (section.contains(root) || root.contains(section)) fromFind.push(root);
+      }
+    }
+    if (fromFind.length) {
+      return pruneNestedRoots(new Set(fromFind));
+    }
+
+    // Fallback if findArticles is empty for this section (timing / pre-hydrate).
+    const candidates = new Set();
+    for (const el of section.querySelectorAll('div.story-wrapper[data-tpl="sli"]')) {
+      if (rootHasArticleAnchor(el) || getArticleUrlForOpinionCard(el)) candidates.add(el);
+    }
+    for (const el of section.querySelectorAll('section.story-wrapper')) {
+      if (el.querySelector('div.story-wrapper')) continue;
+      if (rootHasArticleAnchor(el) || getArticleUrlForOpinionCard(el)) candidates.add(el);
+    }
+    for (const el of [...candidates]) {
+      if (
+        el.tagName === 'SECTION' &&
+        el.classList.contains('story-wrapper') &&
+        el.querySelector('div.story-wrapper[data-tpl="sli"]')
+      ) {
+        candidates.delete(el);
+      }
+    }
+
+    return [...candidates].filter(root => {
+      if (isArticleRootEffectivelyHidden(root)) return false;
+      const url = getArticleUrlForOpinionCard(root);
+      if (!url) return false;
+      return isNytArticleUrl(url) || isOpinionArticleUrl(url);
+    });
+  }
+
+  function cleanExtractedText(raw) {
+    let t = String(raw || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return t;
+  }
+
+  function truncateSummary(text) {
+    let t = cleanExtractedText(text);
+    if (!t) return null;
+    if (t.length <= OPINION_SUMMARY_MAX_CHARS) return t;
+    const slice = t.slice(0, OPINION_SUMMARY_MAX_CHARS - 1);
+    const cut = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('? '), slice.lastIndexOf('! '));
+    if (cut >= OPINION_SUMMARY_MIN_CHARS) return slice.slice(0, cut + 1).trim();
+    const sp = slice.lastIndexOf(' ');
+    return ((sp > 40 ? slice.slice(0, sp) : slice).trim() + '…');
+  }
+
+  function firstSentences(text, maxSentences) {
+    const t = cleanExtractedText(text);
+    if (!t) return null;
+    const parts = t.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g);
+    if (!parts || !parts.length) return truncateSummary(t);
+    return truncateSummary(parts.slice(0, maxSentences).join(' ').trim());
+  }
+
+  function metaContent(doc, selectors) {
+    for (const sel of selectors) {
+      const el = doc.querySelector(sel);
+      if (!el) continue;
+      const c = el.getAttribute('content') || el.getAttribute('value') || '';
+      const s = truncateSummary(c);
+      if (s && s.length >= OPINION_SUMMARY_MIN_CHARS) return s;
+    }
+    return null;
+  }
+
+  function extractSummaryFromHtml(html) {
+    if (!html || typeof html !== 'string') return null;
+    let doc;
+    try {
+      doc = new DOMParser().parseFromString(html, 'text/html');
+    } catch (_) {
+      return null;
+    }
+
+    const fromMeta = metaContent(doc, [
+      'meta[name="description"]',
+      'meta[property="og:description"]',
+      'meta[name="twitter:description"]'
+    ]);
+    if (fromMeta) return fromMeta;
+
+    const summaryEls = doc.querySelectorAll(
+      '#article-summary, [data-testid="article-summary"], p#article-summary, [class*="Summary"]'
+    );
+    for (const el of summaryEls) {
+      const s = firstSentences(el.textContent, 2);
+      if (s && s.length >= OPINION_SUMMARY_MIN_CHARS) return s;
+    }
+
+    const body =
+      doc.querySelector('section[name="articleBody"]') ||
+      doc.querySelector('[data-testid="article-body"]') ||
+      doc.querySelector('article#story') ||
+      doc.querySelector('article[data-testid="article"]') ||
+      doc.querySelector('article');
+    if (body) {
+      const paras = [...body.querySelectorAll('p')]
+        .map(p => cleanExtractedText(p.textContent))
+        .filter(t => t && t.length >= 40 && !/^credit|^photo|^by /i.test(t));
+      if (paras.length) {
+        const joined = paras.slice(0, 3).join(' ');
+        const s = firstSentences(joined, 2);
+        if (s) return s;
+      }
+    }
+
+    // Paywall / partial HTML: last-ditch regex on raw markup.
+    const descMatch =
+      html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) ||
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i) ||
+      html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i);
+    if (descMatch) {
+      const s = truncateSummary(descMatch[1]);
+      if (s && s.length >= OPINION_SUMMARY_MIN_CHARS) return s;
+    }
+    return null;
+  }
+
+  async function loadOpinionSummaryStorage() {
+    if (opinionSummaryStorageLoaded) return;
+    opinionSummaryStorageLoaded = true;
+    const ext = opinionExt();
+    if (!ext?.storage?.local) return;
+    try {
+      const result = await ext.storage.local.get({ [OPINION_SUMMARY_STORAGE_KEY]: {} });
+      const raw = result[OPINION_SUMMARY_STORAGE_KEY];
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+      for (const [url, entry] of Object.entries(raw)) {
+        if (!url || !entry || typeof entry !== 'object') continue;
+        opinionSummaryMem.set(url, entry);
+      }
+    } catch (_) {}
+  }
+
+  function schedulePersistOpinionSummaries() {
+    if (opinionSummaryPersistTimer) clearTimeout(opinionSummaryPersistTimer);
+    opinionSummaryPersistTimer = setTimeout(() => {
+      opinionSummaryPersistTimer = null;
+      void persistOpinionSummaries();
+    }, 400);
+  }
+
+  async function persistOpinionSummaries() {
+    const ext = opinionExt();
+    if (!ext?.storage?.local) return;
+    const out = {};
+    let n = 0;
+    for (const [url, entry] of opinionSummaryMem) {
+      if (!entry || entry.failed || !entry.summary) continue;
+      out[url] = { summary: entry.summary, ts: entry.ts || Date.now() };
+      n += 1;
+      if (n >= 200) break; // bound storage growth
+    }
+    try {
+      await ext.storage.local.set({ [OPINION_SUMMARY_STORAGE_KEY]: out });
+    } catch (_) {}
+  }
+
+  function ensureOpinionSummaryStyle() {
+    if (document.getElementById('nunus-opinion-summary-style')) return;
+    const style = document.createElement('style');
+    style.id = 'nunus-opinion-summary-style';
+    style.textContent = [
+      '.' + OPINION_SUMMARY_CLASS + '{',
+      '  display:block;',
+      '  margin:0.35em 0 0;',
+      '  padding:0;',
+      '  font:400 0.92em/1.35 georgia,"times new roman",serif;',
+      '  color:var(--color-content-secondary,#666);',
+      '  max-width:36em;',
+      '}',
+    ].join('');
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function findOpinionSummaryAnchor(root) {
+    const hSlot = root.querySelector('[data-tpl="h"]');
+    if (hSlot) return hSlot;
+    const hover = root.querySelector('p.indicate-hover');
+    if (hover) return hover;
+    const lbl = root.querySelector('a[data-tpl="l"]');
+    if (lbl) return lbl;
+    return null;
+  }
+
+  function renderOpinionSummary(root, summary) {
+    ensureOpinionSummaryStyle();
+    if (!summary) {
+      const existing = root.querySelector('.' + OPINION_SUMMARY_CLASS);
+      if (existing) existing.remove();
+      return;
+    }
+    const raw = getArticleUrlForOpinionCard(root) || getArticleUrl(root);
+    const canon = (raw && canonicalArticleId(raw)) || raw;
+    let el = root.querySelector('.' + OPINION_SUMMARY_CLASS);
+    if (!el) {
+      el = document.createElement('p');
+      el.className = OPINION_SUMMARY_CLASS;
+      el.setAttribute('data-nunus-opinion-summary', '1');
+      const anchor = findOpinionSummaryAnchor(root);
+      if (anchor && anchor.parentNode) {
+        if (anchor.nextSibling) {
+          anchor.parentNode.insertBefore(el, anchor.nextSibling);
+        } else {
+          anchor.parentNode.appendChild(el);
+        }
+      } else {
+        root.appendChild(el);
+      }
+    }
+    if (canon) el.dataset.nunusSummaryUrl = canon;
+    el.textContent = summary;
+  }
+
+  function pumpOpinionSummaryQueue() {
+    while (
+      opinionSummaryActive < OPINION_SUMMARY_MAX_PARALLEL &&
+      opinionSummaryQueue.length
+    ) {
+      const job = opinionSummaryQueue.shift();
+      opinionSummaryActive += 1;
+      void job()
+        .catch(() => {})
+        .finally(() => {
+          opinionSummaryActive -= 1;
+          pumpOpinionSummaryQueue();
+        });
+    }
+  }
+
+  function enqueueOpinionSummary(task) {
+    opinionSummaryQueue.push(task);
+    pumpOpinionSummaryQueue();
+  }
+
+  async function fetchOpinionSummaryFromOembed(url) {
+    const endpoint =
+      'https://www.nytimes.com/svc/oembed/json/?url=' + encodeURIComponent(url);
+    const res = await fetch(endpoint, {
+      method: 'GET',
+      credentials: 'omit',
+      cache: 'no-cache',
+      headers: { Accept: 'application/json' }
+    });
+    if (!res.ok) throw new Error('oembed HTTP ' + res.status);
+    const data = await res.json();
+    const raw = data && (data.summary || data.description || '');
+    return truncateSummary(raw);
+  }
+
+  async function fetchOpinionSummaryFromArticleHtml(url) {
+    const res = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-cache'
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const html = await res.text();
+    return extractSummaryFromHtml(html);
+  }
+
+  async function fetchOpinionSummary(url) {
+    const canon = canonicalArticleId(url) || url;
+    const cached = opinionSummaryMem.get(canon);
+    if (cached?.summary) return cached.summary;
+    // Soft failure cooldown — oembed is usually fine even when HTML fetch is not.
+    if (cached?.failed && Date.now() - (cached.ts || 0) < 2 * 60 * 1000) {
+      return null;
+    }
+
+    let summary = null;
+    try {
+      summary = await fetchOpinionSummaryFromOembed(url);
+    } catch (_) {}
+    if (!summary || summary.length < OPINION_SUMMARY_MIN_CHARS) {
+      try {
+        const htmlSummary = await fetchOpinionSummaryFromArticleHtml(url);
+        if (htmlSummary && htmlSummary.length > (summary ? summary.length : 0)) {
+          summary = htmlSummary;
+        }
+      } catch (_) {}
+    }
+
+    if (summary && summary.length >= OPINION_SUMMARY_MIN_CHARS) {
+      opinionSummaryMem.set(canon, { summary, ts: Date.now() });
+      schedulePersistOpinionSummaries();
+      return summary;
+    }
+    opinionSummaryMem.set(canon, { failed: true, ts: Date.now() });
+    return null;
+  }
+
+  function syncOpinionsSummaries() {
+    if (!isHomepage()) return;
+    const roots = collectOpinionsSectionRoots();
+    if (!roots.length) return;
+
+    const seen = new Set();
+    for (const root of roots) {
+      const rawUrl = getArticleUrlForOpinionCard(root);
+      const canon = rawUrl ? canonicalArticleId(rawUrl) : null;
+      if (!canon || seen.has(canon)) continue;
+      seen.add(canon);
+
+      const cached = opinionSummaryMem.get(canon);
+      if (cached?.summary) {
+        renderOpinionSummary(root, cached.summary);
+        continue;
+      }
+
+      // Avoid re-queueing the same URL while in-flight / recently failed.
+      if (root.dataset.nunusSummaryQueued === canon) continue;
+      root.dataset.nunusSummaryQueued = canon;
+
+      enqueueOpinionSummary(async () => {
+        const summary = await fetchOpinionSummary(rawUrl);
+        // NYT often replaces card nodes while fetches are in flight — never bail
+        // solely because the original root disconnected; rebind by URL.
+        const liveRoots = collectOpinionsSectionRoots().filter(r => {
+          const u = getArticleUrlForOpinionCard(r);
+          return u && canonicalArticleId(u) === canon;
+        });
+        let targets = liveRoots;
+        if (!targets.length && root.isConnected) targets = [root];
+        for (const r of targets) {
+          if (summary) renderOpinionSummary(r, summary);
+          // Allow a later retry if this attempt failed (DOM still present).
+          if (!summary) delete r.dataset.nunusSummaryQueued;
+        }
+      });
+    }
+  }
+
+  async function startOpinionsSummaries() {
+    if (!isHomepage()) return;
+    await loadOpinionSummaryStorage();
+    ensureOpinionSummaryStyle();
+    syncOpinionsSummaries();
+
+    if (opinionSummaryObserverStarted) return;
+    opinionSummaryObserverStarted = true;
+    let debounce;
+    const run = () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        try {
+          syncOpinionsSummaries();
+        } catch (_) {}
+      }, 500);
+    };
+    const mo = new MutationObserver(run);
+    if (document.body) {
+      mo.observe(document.body, { childList: true, subtree: true });
+    }
+    setTimeout(syncOpinionsSummaries, 2000);
+  }
+
   window.NunusSites = window.NunusSites || {};
   window.NunusSites.nyt = {
     findArticles,
@@ -604,6 +1066,10 @@
     getBlockTopicHaystack,
     getArticleUrl,
     getArticleTitle: getTitleFromRoot,
-    canonicalArticleId
+    canonicalArticleId,
+    startOpinionsSummaries,
+    collectOpinionsSectionRoots,
+    // Exposed for tests / debug
+    extractSummaryFromHtml
   };
 })();
