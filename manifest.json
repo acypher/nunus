@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "4.2.27",
+  "version": "4.2.28",
   "description": "Read only the news that's new. Gray out headlines you've already seen on the news sites you follow.",
   "browser_specific_settings": {
     "gecko": {
@@ -24,6 +24,8 @@
     "scripting"
   ],
   "host_permissions": [
+    "http://localhost:1337/*",
+    "http://127.0.0.1:1337/*",
     "http://localhost:11434/*",
     "http://127.0.0.1:11434/*",
     "https://nytimes.com/*",

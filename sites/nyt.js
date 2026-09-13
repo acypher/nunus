@@ -594,7 +594,7 @@
     return path === '/' || path === '' || path === '/index.html';
   }
 
-  /* —— Opinions homepage summaries (substance-first; optional local Ollama) —— */
+  /* —— Opinions homepage summaries (substance-first; Osaurus then Ollama) —— */
 
   const OPINION_SUMMARY_STORAGE_KEY = 'nunus_nyt_opinion_summaries_v3';
   const OPINION_SUMMARY_CLASS = 'nunus-opinion-summary';
@@ -603,8 +603,13 @@
   const OPINION_SUMMARY_MIN_CHARS = 40;
   const OLLAMA_CHAT_URL = 'http://127.0.0.1:11434/api/chat';
   const OLLAMA_TAGS_URL = 'http://127.0.0.1:11434/api/tags';
+  const OSAURUS_BASE = 'http://127.0.0.1:1337';
+  const OSAURUS_MODELS_URL = OSAURUS_BASE + '/v1/models';
+  const OSAURUS_CHAT_URL = OSAURUS_BASE + '/v1/chat/completions';
   let ollamaModelName = null;
   let ollamaProbePromise = null;
+  let osaurusModelName = null;
+  let osaurusProbePromise = null;
 
   /** In-memory cache: canonicalUrl -> { summary, ts } | { failed: true, ts } */
   const opinionSummaryMem = new Map();
@@ -924,6 +929,82 @@
     return buildSubstanceSummaryFromPayload(extractArticlePayload(html));
   }
 
+  async function probeOsaurusModel() {
+    if (osaurusModelName) return osaurusModelName;
+    if (osaurusProbePromise) return osaurusProbePromise;
+    osaurusProbePromise = (async () => {
+      try {
+        const res = await fetch(OSAURUS_MODELS_URL, {
+          method: 'GET',
+          credentials: 'omit',
+          cache: 'no-cache'
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const models = Array.isArray(data?.data) ? data.data : [];
+        const ids = models.map(m => m?.id).filter(Boolean);
+        // Prefer a general chat/foundation model when present.
+        const prefer = ids.find(id => /foundation|instruct|chat|llama|qwen|mistral/i.test(id));
+        osaurusModelName = prefer || ids[0] || null;
+        return osaurusModelName;
+      } catch (_) {
+        osaurusModelName = null;
+        return null;
+      }
+    })();
+    return osaurusProbePromise;
+  }
+
+  function opinionSummaryPromptParts(payload, url) {
+    const bodyText = (payload.paras || []).slice(0, 6).join('\n\n');
+    const system =
+      'You write dense 1-2 sentence summaries of New York Times Opinion pieces for readers who will not open the article. ' +
+      'Include the author when known, the concrete topic, and the writer\'s main claim or stakes. ' +
+      'Never write teasers or withhold the key fact. No clickbait. No preface like "This article".';
+    const user =
+      'Title: ' +
+      (payload.title || '') +
+      '\nAuthor: ' +
+      (payload.author || '') +
+      '\nURL: ' +
+      (url || '') +
+      '\n\nArticle text:\n' +
+      bodyText.slice(0, 4500);
+    return { bodyText, system, user };
+  }
+
+  async function summarizeWithOsaurus(payload, url) {
+    const model = await probeOsaurusModel();
+    if (!model || !payload) return null;
+    const { bodyText, system, user } = opinionSummaryPromptParts(payload, url);
+    if (!bodyText || bodyText.length < 120) return null;
+
+    const res = await fetch(OSAURUS_CHAT_URL, {
+      method: 'POST',
+      credentials: 'omit',
+      cache: 'no-cache',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        max_tokens: 180,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user }
+        ]
+      })
+    });
+    if (!res.ok) throw new Error('osaurus HTTP ' + res.status);
+    const data = await res.json();
+    const raw =
+      data?.choices?.[0]?.message?.content ||
+      data?.choices?.[0]?.text ||
+      '';
+    const summary = truncateSummary(String(raw).replace(/^["']|["']$/g, ''));
+    if (!summary || isTeaserSummary(summary)) return null;
+    return summary;
+  }
+
   async function probeOllamaModel() {
     if (ollamaModelName) return ollamaModelName;
     if (ollamaProbePromise) return ollamaProbePromise;
@@ -952,22 +1033,8 @@
   async function summarizeWithOllama(payload, url) {
     const model = await probeOllamaModel();
     if (!model || !payload) return null;
-    const bodyText = (payload.paras || []).slice(0, 6).join('\n\n');
+    const { bodyText, system, user } = opinionSummaryPromptParts(payload, url);
     if (!bodyText || bodyText.length < 120) return null;
-
-    const system =
-      'You write dense 1-2 sentence summaries of New York Times Opinion pieces for readers who will not open the article. ' +
-      'Include the author when known, the concrete topic, and the writer\'s main claim or stakes. ' +
-      'Never write teasers or withhold the key fact. No clickbait. No preface like "This article".';
-    const user =
-      'Title: ' +
-      (payload.title || '') +
-      '\nAuthor: ' +
-      (payload.author || '') +
-      '\nURL: ' +
-      (url || '') +
-      '\n\nArticle text:\n' +
-      bodyText.slice(0, 4500);
 
     const res = await fetch(OLLAMA_CHAT_URL, {
       method: 'POST',
@@ -1156,8 +1223,13 @@
     let summary = null;
     if (payload) {
       try {
-        summary = await summarizeWithOllama(payload, url);
+        summary = await summarizeWithOsaurus(payload, url);
       } catch (_) {}
+      if (!summary) {
+        try {
+          summary = await summarizeWithOllama(payload, url);
+        } catch (_) {}
+      }
       if (!summary) summary = buildSubstanceSummaryFromPayload(payload);
     }
 

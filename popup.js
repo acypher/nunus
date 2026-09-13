@@ -1,6 +1,15 @@
 /** WebExtension namespace: prefer `browser` when present, else `chrome`. */
 const ext = globalThis.browser ?? globalThis.chrome;
 
+(function setPopupTitleVersion() {
+  const el = document.getElementById('appTitle');
+  if (!el || !ext?.runtime?.getManifest) return;
+  try {
+    const v = ext.runtime.getManifest().version;
+    if (v) el.textContent = 'Nunus ' + v;
+  } catch (_) {}
+})();
+
 const STORAGE_KEY = 'nunus_viewed_articles';
 const STORAGE_TITLES_KEY = 'nunus_viewed_article_titles';
 const SESSION_KEY = 'nunus_session_viewed';
