@@ -265,9 +265,10 @@
     return norm(parts.filter(Boolean).join(' ')) || '';
   }
 
-  /** news.google.com surfaces are feeds; article links open the publisher in a new tab. */
+  /** news.google.com front page only. */
   function isHomepage() {
-    return !READ_PATH.test(window.location.pathname);
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    return path === '/';
   }
 
   window.NunusSites = window.NunusSites || {};

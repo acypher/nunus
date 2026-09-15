@@ -594,22 +594,17 @@
     return path === '/' || path === '' || path === '/index.html';
   }
 
-  /* —— Opinions homepage summaries (substance-first; Osaurus then Ollama) —— */
+  /* —— Opinions homepage summaries (local Ollama; extractive fallback) —— */
 
-  const OPINION_SUMMARY_STORAGE_KEY = 'nunus_nyt_opinion_summaries_v3';
+  const OPINION_SUMMARY_STORAGE_KEY = 'nunus_nyt_opinion_summaries_v4';
   const OPINION_SUMMARY_CLASS = 'nunus-opinion-summary';
   const OPINION_SUMMARY_MAX_PARALLEL = 3;
   const OPINION_SUMMARY_MAX_CHARS = 420;
   const OPINION_SUMMARY_MIN_CHARS = 40;
   const OLLAMA_CHAT_URL = 'http://127.0.0.1:11434/api/chat';
   const OLLAMA_TAGS_URL = 'http://127.0.0.1:11434/api/tags';
-  const OSAURUS_BASE = 'http://127.0.0.1:1337';
-  const OSAURUS_MODELS_URL = OSAURUS_BASE + '/v1/models';
-  const OSAURUS_CHAT_URL = OSAURUS_BASE + '/v1/chat/completions';
   let ollamaModelName = null;
   let ollamaProbePromise = null;
-  let osaurusModelName = null;
-  let osaurusProbePromise = null;
 
   /** In-memory cache: canonicalUrl -> { summary, ts } | { failed: true, ts } */
   const opinionSummaryMem = new Map();
@@ -626,9 +621,51 @@
   function isOpinionArticleUrl(href) {
     const u = resolveArticleUrl(href);
     if (!u || !isNytimesHost(u.hostname)) return false;
+    // Pieces, not the /section/opinion hub or masthead chrome.
+    return /\/opinion\//.test(u.pathname);
+  }
+
+  function isOpinionHeadingText(text) {
+    return /^opinions?$/i.test(String(text || '').replace(/\s+/g, ' ').trim());
+  }
+
+  function isMastheadOrNav(el) {
+    if (!el || !el.closest) return true;
+    return !!(
+      el.closest('header') ||
+      el.closest('nav') ||
+      el.closest('[data-testid="masthead-container"]') ||
+      el.closest('[data-testid="floating-desktop-nested-nav"]')
+    );
+  }
+
+  function homepageMain() {
+    return document.getElementById('site-content') || document.querySelector('main');
+  }
+
+  /** True when most article links under node are Opinion pieces (not a mixed rail). */
+  function sectionIsOpinionScoped(node) {
+    if (!node) return false;
+    let opinion = 0;
+    let other = 0;
+    for (const a of node.querySelectorAll('a[href]')) {
+      if (isOpinionArticleUrl(a.href)) opinion += 1;
+      else if (isNytArticleUrl(a.href)) other += 1;
+    }
+    if (!opinion) return false;
+    return opinion >= other;
+  }
+
+  function isHomepageWideContainer(node) {
+    if (!node) return true;
+    const id = node.id || '';
+    const hier = node.getAttribute('data-hierarchy');
     return (
-      u.pathname.includes('/opinion/') ||
-      u.pathname.startsWith('/section/opinion')
+      node === document.body ||
+      node.tagName === 'MAIN' ||
+      id === 'app' ||
+      id === 'site-content' ||
+      hier === 'feed'
     );
   }
 
@@ -653,37 +690,71 @@
   }
 
   /**
-   * Homepage “Opinions” block: climb from #large-opinion-label / .g-large-opinion-label
-   * to the smallest ancestor that also contains story cards.
+   * Heading of the homepage Opinions package — never the masthead/nav “Opinion” link
+   * (climbing from nav reaches #app and would summarize every homepage card).
+   */
+  function findOpinionsSectionLabel() {
+    const legacy =
+      document.getElementById('large-opinion-label') ||
+      document.querySelector('.g-large-opinion-label');
+    if (legacy) return legacy;
+
+    const main = homepageMain();
+    if (!main) return null;
+
+    const packageTitle = [...main.querySelectorAll('.package-title-wrapper')].find(el =>
+      isOpinionHeadingText(el.textContent)
+    );
+    if (packageTitle) return packageTitle;
+
+    return (
+      [...main.querySelectorAll('a[href*="/section/opinion"]')].find(a => {
+        if (isMastheadOrNav(a)) return false;
+        return isOpinionHeadingText(a.textContent);
+      }) || null
+    );
+  }
+
+  /**
+   * Homepage “Opinions” block: climb from the section label to the smallest
+   * ancestor that also contains story cards.
    */
   function findOpinionsSectionContainer() {
-    const label =
-      document.getElementById('large-opinion-label') ||
-      document.querySelector('.g-large-opinion-label') ||
-      [...document.querySelectorAll('a[href*="/section/opinion"]')].find(a => {
-        const t = (a.textContent || '').replace(/\s+/g, ' ').trim();
-        return /^opinions?$/i.test(t);
-      });
+    const label = findOpinionsSectionLabel();
     if (!label) return null;
 
     // Climb to the smallest ancestor that contains story cards, but stop before
-    // the homepage programming zone (it also mixes later non-Opinion rails).
+    // the homepage programming zone / feed (those mix later non-Opinion rails).
     let node = label.parentElement;
     while (node && node !== document.body) {
-      if (
-        node.getAttribute('data-testid') === 'programming-node' ||
-        node.getAttribute('data-hierarchy') === 'zone'
-      ) {
-        return null;
+      if (isHomepageWideContainer(node)) return null;
+      if (isMastheadOrNav(node)) {
+        node = node.parentElement;
+        continue;
       }
+      const isZone =
+        node.getAttribute('data-testid') === 'programming-node' ||
+        node.getAttribute('data-hierarchy') === 'zone';
       const hasStories = !!(
         node.querySelector('div.story-wrapper[data-tpl="sli"]') ||
         node.querySelector('section.story-wrapper')
       );
-      if (hasStories) return node;
+      if (hasStories) {
+        if (sectionIsOpinionScoped(node)) return node;
+        // Mixed zone: still return it; caller keeps only /opinion/ cards.
+        if (isZone) return node;
+        return null;
+      }
+      if (isZone) return null;
       node = node.parentElement;
     }
     return null;
+  }
+
+  function isOpinionCardRoot(root) {
+    if (!root || isArticleRootEffectivelyHidden(root)) return false;
+    const url = getArticleUrlForOpinionCard(root);
+    return !!(url && isOpinionArticleUrl(url));
   }
 
   function collectOpinionsSectionRoots() {
@@ -695,7 +766,7 @@
     const fromFind = [];
     for (const [, roots] of findArticles()) {
       for (const root of roots) {
-        if (section.contains(root) || root.contains(section)) fromFind.push(root);
+        if (section.contains(root) && isOpinionCardRoot(root)) fromFind.push(root);
       }
     }
     if (fromFind.length) {
@@ -721,12 +792,21 @@
       }
     }
 
-    return [...candidates].filter(root => {
-      if (isArticleRootEffectivelyHidden(root)) return false;
-      const url = getArticleUrlForOpinionCard(root);
-      if (!url) return false;
-      return isNytArticleUrl(url) || isOpinionArticleUrl(url);
-    });
+    return [...candidates].filter(isOpinionCardRoot);
+  }
+
+  function stripStrayOpinionSummaries(allowedRoots) {
+    const allowed = allowedRoots instanceof Set ? allowedRoots : new Set(allowedRoots);
+    for (const el of document.querySelectorAll('.' + OPINION_SUMMARY_CLASS)) {
+      let keep = false;
+      for (const root of allowed) {
+        if (root.contains(el)) {
+          keep = true;
+          break;
+        }
+      }
+      if (!keep) el.remove();
+    }
   }
 
   function cleanExtractedText(raw) {
@@ -929,32 +1009,6 @@
     return buildSubstanceSummaryFromPayload(extractArticlePayload(html));
   }
 
-  async function probeOsaurusModel() {
-    if (osaurusModelName) return osaurusModelName;
-    if (osaurusProbePromise) return osaurusProbePromise;
-    osaurusProbePromise = (async () => {
-      try {
-        const res = await fetch(OSAURUS_MODELS_URL, {
-          method: 'GET',
-          credentials: 'omit',
-          cache: 'no-cache'
-        });
-        if (!res.ok) return null;
-        const data = await res.json();
-        const models = Array.isArray(data?.data) ? data.data : [];
-        const ids = models.map(m => m?.id).filter(Boolean);
-        // Prefer a general chat/foundation model when present.
-        const prefer = ids.find(id => /foundation|instruct|chat|llama|qwen|mistral/i.test(id));
-        osaurusModelName = prefer || ids[0] || null;
-        return osaurusModelName;
-      } catch (_) {
-        osaurusModelName = null;
-        return null;
-      }
-    })();
-    return osaurusProbePromise;
-  }
-
   function opinionSummaryPromptParts(payload, url) {
     const bodyText = (payload.paras || []).slice(0, 6).join('\n\n');
     const system =
@@ -971,38 +1025,6 @@
       '\n\nArticle text:\n' +
       bodyText.slice(0, 4500);
     return { bodyText, system, user };
-  }
-
-  async function summarizeWithOsaurus(payload, url) {
-    const model = await probeOsaurusModel();
-    if (!model || !payload) return null;
-    const { bodyText, system, user } = opinionSummaryPromptParts(payload, url);
-    if (!bodyText || bodyText.length < 120) return null;
-
-    const res = await fetch(OSAURUS_CHAT_URL, {
-      method: 'POST',
-      credentials: 'omit',
-      cache: 'no-cache',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        temperature: 0.2,
-        max_tokens: 180,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user }
-        ]
-      })
-    });
-    if (!res.ok) throw new Error('osaurus HTTP ' + res.status);
-    const data = await res.json();
-    const raw =
-      data?.choices?.[0]?.message?.content ||
-      data?.choices?.[0]?.text ||
-      '';
-    const summary = truncateSummary(String(raw).replace(/^["']|["']$/g, ''));
-    if (!summary || isTeaserSummary(summary)) return null;
-    return summary;
   }
 
   async function probeOllamaModel() {
@@ -1027,7 +1049,9 @@
         return null;
       }
     })();
-    return ollamaProbePromise;
+    const name = await ollamaProbePromise;
+    if (!name) ollamaProbePromise = null;
+    return name;
   }
 
   async function summarizeWithOllama(payload, url) {
@@ -1055,7 +1079,7 @@
     const data = await res.json();
     const raw = data?.message?.content || data?.response || '';
     const summary = truncateSummary(String(raw).replace(/^["']|["']$/g, ''));
-    if (!summary || isTeaserSummary(summary)) return null;
+    if (!summary || summary.length < OPINION_SUMMARY_MIN_CHARS) return null;
     return summary;
   }
 
@@ -1070,6 +1094,7 @@
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
       for (const [url, entry] of Object.entries(raw)) {
         if (!url || !entry || typeof entry !== 'object') continue;
+        if (!isOpinionArticleUrl(url)) continue;
         // Drop cached teasers from older generations.
         if (entry.summary && isTeaserSummary(entry.summary)) continue;
         opinionSummaryMem.set(url, entry);
@@ -1092,8 +1117,14 @@
     let n = 0;
     for (const [url, entry] of opinionSummaryMem) {
       if (!entry || entry.failed || !entry.summary) continue;
+      if (!isOpinionArticleUrl(url)) continue;
+      if (entry.source !== 'ollama') continue;
       if (isTeaserSummary(entry.summary)) continue;
-      out[url] = { summary: entry.summary, ts: entry.ts || Date.now() };
+      out[url] = {
+        summary: entry.summary,
+        ts: entry.ts || Date.now(),
+        source: entry.source || 'extract'
+      };
       n += 1;
       if (n >= 200) break;
     }
@@ -1208,11 +1239,14 @@
   }
 
   async function fetchOpinionSummary(url) {
+    if (!isOpinionArticleUrl(url)) return null;
     const canon = canonicalArticleId(url) || url;
     const cached = opinionSummaryMem.get(canon);
-    if (cached?.summary && !isTeaserSummary(cached.summary)) return cached.summary;
+    if (cached?.source === 'ollama' && cached.summary && cached.summary.length >= OPINION_SUMMARY_MIN_CHARS) {
+      return cached.summary;
+    }
     if (cached?.failed && Date.now() - (cached.ts || 0) < 2 * 60 * 1000) {
-      return null;
+      return cached.summary || null;
     }
 
     let payload = null;
@@ -1221,36 +1255,31 @@
     } catch (_) {}
 
     let summary = null;
+    let source = null;
     if (payload) {
       try {
-        summary = await summarizeWithOsaurus(payload, url);
+        summary = await summarizeWithOllama(payload, url);
+        if (summary) source = 'ollama';
       } catch (_) {}
       if (!summary) {
-        try {
-          summary = await summarizeWithOllama(payload, url);
-        } catch (_) {}
+        summary = cached?.summary || buildSubstanceSummaryFromPayload(payload);
+        if (summary) source = cached?.source || 'extract';
       }
-      if (!summary) summary = buildSubstanceSummaryFromPayload(payload);
     }
 
-    if (!summary || isTeaserSummary(summary)) {
+    if ((!summary || source !== 'ollama') && (!summary || isTeaserSummary(summary))) {
       try {
         const oembedSummary = await fetchOpinionSummaryFromOembed(url);
         if (oembedSummary && (!summary || oembedSummary.length > summary.length)) {
           summary = oembedSummary;
+          source = 'oembed';
         }
       } catch (_) {}
     }
 
-    if (summary && !isTeaserSummary(summary) && summary.length >= OPINION_SUMMARY_MIN_CHARS) {
-      opinionSummaryMem.set(canon, { summary, ts: Date.now() });
-      schedulePersistOpinionSummaries();
-      return summary;
-    }
-    // Keep a weak body summary if that is all we have — better than nothing —
-    // but do not persist teasers.
     if (summary && summary.length >= OPINION_SUMMARY_MIN_CHARS) {
-      opinionSummaryMem.set(canon, { summary, ts: Date.now() });
+      opinionSummaryMem.set(canon, { summary, ts: Date.now(), source: source || 'extract' });
+      if (source === 'ollama') schedulePersistOpinionSummaries();
       return summary;
     }
     opinionSummaryMem.set(canon, { failed: true, ts: Date.now() });
@@ -1260,20 +1289,23 @@
   function syncOpinionsSummaries() {
     if (!isHomepage()) return;
     const roots = collectOpinionsSectionRoots();
+    stripStrayOpinionSummaries(roots);
     if (!roots.length) return;
 
     const seen = new Set();
     for (const root of roots) {
       const rawUrl = getArticleUrlForOpinionCard(root);
+      if (!isOpinionArticleUrl(rawUrl)) continue;
       const canon = rawUrl ? canonicalArticleId(rawUrl) : null;
       if (!canon || seen.has(canon)) continue;
       seen.add(canon);
 
       const cached = opinionSummaryMem.get(canon);
-      if (cached?.summary) {
+      if (cached?.source === 'ollama' && cached.summary) {
         renderOpinionSummary(root, cached.summary);
         continue;
       }
+      if (cached?.summary) renderOpinionSummary(root, cached.summary);
 
       // Avoid re-queueing the same URL while in-flight / recently failed.
       if (root.dataset.nunusSummaryQueued === canon) continue;
@@ -1288,7 +1320,9 @@
           return u && canonicalArticleId(u) === canon;
         });
         let targets = liveRoots;
-        if (!targets.length && root.isConnected) targets = [root];
+        if (!targets.length && root.isConnected && isOpinionCardRoot(root)) {
+          targets = [root];
+        }
         for (const r of targets) {
           if (summary) renderOpinionSummary(r, summary);
           // Allow a later retry if this attempt failed (DOM still present).

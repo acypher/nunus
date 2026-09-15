@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check whether manifest.json version is live on Chrome, Firefox, and Safari."""
+"""Check whether manifest.json version is live on Chrome, Firefox, Safari macOS, and Safari iOS."""
 
 from __future__ import annotations
 
@@ -62,29 +62,24 @@ def safari_auto_release_enabled() -> bool:
     }
 
 
-def safari_version_rows(app_id: str) -> list[dict]:
-    payload = pending.asc_get(f"/v1/apps/{app_id}/appStoreVersions?filter[platform]=MAC_OS&limit=20")
+def safari_version_rows(app_id: str, platform: str = "MAC_OS") -> list[dict]:
+    payload = pending.asc_get(f"/v1/apps/{app_id}/appStoreVersions?filter[platform]={platform}&limit=20")
     return payload.get("data") or []
 
 
-def safari_live_version(rows: list[dict]) -> str:
-    live = "unknown"
-    for row in rows:
-        attrs = row.get("attributes") or {}
-        version_string = attrs.get("versionString") or "?"
-        if attrs.get("appStoreState") != "READY_FOR_SALE":
-            continue
-        if live == "unknown" or version_key(version_string) > version_key(live):
-            live = version_string
-    return live
-
-
-def try_release_safari_version(target: str) -> str | None:
-    """Release Safari version when Apple approved but manual release is required."""
+def try_release_app_store_version(
+    target: str,
+    *,
+    platform: str,
+    bundle_env: str,
+    bundle_default: str,
+    label: str,
+) -> str | None:
+    """Release an App Store version when Apple approved but manual release is required."""
     if not safari_auto_release_enabled():
         return None
 
-    bundle_id = pending.env("MACOS_BUNDLE_ID") or pending.DEFAULT_BUNDLE_ID
+    bundle_id = pending.env(bundle_env) or bundle_default
     required = [
         "APP_STORE_CONNECT_API_KEY_ID",
         "APP_STORE_CONNECT_ISSUER_ID",
@@ -100,7 +95,7 @@ def try_release_safari_version(target: str) -> str | None:
 
     app_id = app_rows[0]["id"]
     target_row = None
-    for row in safari_version_rows(app_id):
+    for row in safari_version_rows(app_id, platform):
         attrs = row.get("attributes") or {}
         if attrs.get("versionString") == target:
             target_row = row
@@ -115,7 +110,29 @@ def try_release_safari_version(target: str) -> str | None:
 
     client = AppStoreConnectClient()
     client.release_app_store_version(target_row["id"])
-    return f"Released Nunus {target} to the Mac App Store (was PENDING_DEVELOPER_RELEASE)"
+    return f"Released {label} {target} to the App Store (was PENDING_DEVELOPER_RELEASE)"
+
+
+def try_release_safari_version(target: str) -> str | None:
+    """Release Safari macOS when Apple approved but manual release is required."""
+    return try_release_app_store_version(
+        target,
+        platform="MAC_OS",
+        bundle_env="MACOS_BUNDLE_ID",
+        bundle_default=pending.DEFAULT_BUNDLE_ID,
+        label="Nunus",
+    )
+
+
+def try_release_safari_ios_version(target: str) -> str | None:
+    """Release Safari iOS when Apple approved but manual release is required."""
+    return try_release_app_store_version(
+        target,
+        platform="IOS",
+        bundle_env="IOS_BUNDLE_ID",
+        bundle_default="com.acypher.nunus.ios",
+        label="Nunus iOS",
+    )
 
 
 def channel_version(channel: dict) -> str | None:
@@ -256,35 +273,51 @@ def firefox_status(target: str) -> LiveStatus:
     )
 
 
-def safari_status(target: str) -> LiveStatus:
-    store = "Safari (Mac App Store)"
-    bundle_id = pending.env("MACOS_BUNDLE_ID") or pending.DEFAULT_BUNDLE_ID
+def safari_live_version(rows: list[dict]) -> str:
+    live = "unknown"
+    for row in rows:
+        attrs = row.get("attributes") or {}
+        version_string = attrs.get("versionString") or "?"
+        if attrs.get("appStoreState") != "READY_FOR_SALE":
+            continue
+        if live == "unknown" or version_key(version_string) > version_key(live):
+            live = version_string
+    return live
+
+
+def app_store_status(
+    target: str,
+    *,
+    platform: str,
+    bundle_id: str,
+    store_name: str,
+) -> LiveStatus:
     required = [
         "APP_STORE_CONNECT_API_KEY_ID",
         "APP_STORE_CONNECT_ISSUER_ID",
         "APP_STORE_CONNECT_API_KEY_PATH",
     ]
     if any(not pending.env(name) for name in required):
-        return LiveStatus(store, "CHECK", "unknown", target, "credentials missing", "Set App Store Connect API key vars in scripts/release.env")
+        return LiveStatus(store_name, "CHECK", "unknown", target, "credentials missing", "Set App Store Connect API key vars in scripts/release.env")
 
     try:
         apps = pending.asc_get(f"/v1/apps?filter[bundleId]={parse.quote(bundle_id)}")
     except error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        return LiveStatus(store, "CHECK", "unknown", target, "could not list app", f"HTTP {exc.code}: {body}")
+        return LiveStatus(store_name, "CHECK", "unknown", target, "could not list app", f"HTTP {exc.code}: {body}")
 
     app_rows = apps.get("data") or []
     if not app_rows:
-        return LiveStatus(store, "CHECK", "unknown", target, f"no app for bundle id {bundle_id}")
+        return LiveStatus(store_name, "CHECK", "unknown", target, f"no app for bundle id {bundle_id}")
 
     app_id = app_rows[0]["id"]
     app_name = app_rows[0]["attributes"].get("name", bundle_id)
 
     try:
-        versions = pending.asc_get(f"/v1/apps/{app_id}/appStoreVersions?filter[platform]=MAC_OS&limit=20")
+        versions = pending.asc_get(f"/v1/apps/{app_id}/appStoreVersions?filter[platform]={platform}&limit=20")
     except error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        return LiveStatus(store, "CHECK", "unknown", target, "could not list versions", f"HTTP {exc.code}: {body}")
+        return LiveStatus(store_name, "CHECK", "unknown", target, "could not list versions", f"HTTP {exc.code}: {body}")
 
     rows = versions.get("data") or []
     live = safari_live_version(rows)
@@ -297,19 +330,19 @@ def safari_status(target: str) -> LiveStatus:
             target_state = state
 
     if versions_match(live, target):
-        return LiveStatus(store, "LIVE", live, target, f"{target} is live ({app_name})")
+        return LiveStatus(store_name, "LIVE", live, target, f"{target} is live ({app_name})")
 
     if target_state == "READY_FOR_SALE":
-        return LiveStatus(store, "LIVE", target, target, f"{target} is live ({app_name})")
+        return LiveStatus(store_name, "LIVE", target, target, f"{target} is live ({app_name})")
 
     if target_state == "PENDING_DEVELOPER_RELEASE":
         detail = (
-            "Approved by Apple — publishCheck releases automatically when APP_STORE_AUTO_RELEASE is enabled."
+            "Approved by Apple — publish-check releases automatically when APP_STORE_AUTO_RELEASE is enabled."
             if safari_auto_release_enabled()
             else "Approved by Apple — click Release This Version in App Store Connect."
         )
         return LiveStatus(
-            store,
+            store_name,
             "PENDING",
             live,
             target,
@@ -319,7 +352,7 @@ def safari_status(target: str) -> LiveStatus:
 
     if target_state in pending.SAFARI_PENDING_VERSION_STATES:
         return LiveStatus(
-            store,
+            store_name,
             "PENDING",
             live,
             target,
@@ -327,9 +360,19 @@ def safari_status(target: str) -> LiveStatus:
             "Monitor App Store Connect until review completes.",
         )
 
+    if target_state == "REJECTED":
+        return LiveStatus(
+            store_name,
+            "BEHIND",
+            live,
+            target,
+            f"live {live}; {target} was REJECTED",
+            "Fix issues in App Store Connect and resubmit.",
+        )
+
     if target_state:
         return LiveStatus(
-            store,
+            store_name,
             "PENDING",
             live,
             target,
@@ -340,7 +383,7 @@ def safari_status(target: str) -> LiveStatus:
         builds = pending.asc_get(f"/v1/apps/{app_id}/builds?limit=20")
     except error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        return LiveStatus(store, "CHECK", live, target, "could not list builds", f"HTTP {exc.code}: {body}")
+        return LiveStatus(store_name, "CHECK", live, target, "could not list builds", f"HTTP {exc.code}: {body}")
 
     for row in builds.get("data", []):
         attrs = row.get("attributes") or {}
@@ -351,7 +394,7 @@ def safari_status(target: str) -> LiveStatus:
             pre_version = (pre_release.get("data") or {}).get("attributes", {}).get("version", "")
             if pre_version == target:
                 return LiveStatus(
-                    store,
+                    store_name,
                     "PENDING",
                     live,
                     target,
@@ -359,12 +402,41 @@ def safari_status(target: str) -> LiveStatus:
                 )
 
     return LiveStatus(
-        store,
+        store_name,
         "BEHIND",
         live,
         target,
         f"live {live}; target {target} not on App Store ({app_name})",
     )
+
+
+def safari_status(target: str) -> LiveStatus:
+    bundle_id = pending.env("MACOS_BUNDLE_ID") or pending.DEFAULT_BUNDLE_ID
+    return app_store_status(
+        target,
+        platform="MAC_OS",
+        bundle_id=bundle_id,
+        store_name="Safari (Mac App Store)",
+    )
+
+
+def safari_ios_status(target: str) -> LiveStatus:
+    bundle_id = pending.env("IOS_BUNDLE_ID") or "com.acypher.nunus.ios"
+    return app_store_status(
+        target,
+        platform="IOS",
+        bundle_id=bundle_id,
+        store_name="Safari (iOS App Store)",
+    )
+
+
+def store_statuses(target: str) -> list[LiveStatus]:
+    return [
+        chrome_status(target),
+        firefox_status(target),
+        safari_status(target),
+        safari_ios_status(target),
+    ]
 
 
 def print_statuses(statuses: list[LiveStatus], target: str) -> int:
@@ -381,7 +453,7 @@ def print_statuses(statuses: list[LiveStatus], target: str) -> int:
 
     print()
     if live_count == len(statuses):
-        print(f"Summary: LIVE — {target} is available on Chrome, Firefox, and Safari.")
+        print(f"Summary: LIVE — {target} is available on all {len(statuses)} stores.")
         return 0
 
     print(
@@ -411,9 +483,9 @@ def main() -> int:
 
     release_note = None
     if not args.no_auto_release:
-        release_note = try_release_safari_version(target)
+        release_note = try_release_safari_version(target) or try_release_safari_ios_version(target)
 
-    statuses = [chrome_status(target), firefox_status(target), safari_status(target)]
+    statuses = store_statuses(target)
     live_count = sum(1 for item in statuses if item.state == "LIVE")
     all_live = live_count == len(statuses)
 

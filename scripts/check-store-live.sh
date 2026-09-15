@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Check whether manifest.json version is live on Chrome, Firefox, and Safari.
+# Check whether manifest.json version is live on Chrome, Firefox, Safari macOS, and Safari iOS.
 #
 # Usage:
 #   ./scripts/check-store-live.sh
 #
-# Exit 0 when all three stores serve the repo version; exit 1 otherwise.
+# Exit 0 when all four stores serve the repo version; exit 1 otherwise.
 
 set -euo pipefail
 

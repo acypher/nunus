@@ -413,9 +413,10 @@
     return norm(clone.textContent) || '';
   }
 
-  /** Listing surfaces (home, sections, latest); not individual article pages. */
+  /** Main front page only; not section or article pages. */
   function isHomepage() {
-    return !ARTICLE_PATH.test(pathOf(resolveUrl(window.location.href)));
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    return path === '/';
   }
 
   /** Dark “Documentaries” thumbnail rail — image tiles only, no headline markup. */

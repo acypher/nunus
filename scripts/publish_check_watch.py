@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install, run, and tear down the daily publish-check watcher."""
+"""Install, run, and tear down the publish-check watcher."""
 
 from __future__ import annotations
 
@@ -26,6 +26,14 @@ LOG_DIR = SCRIPT_DIR / "logs"
 LOG_FILE = LOG_DIR / "publish-check-watch.log"
 LAUNCH_AGENT_LABEL = "com.acypher.nunus.publish-check"
 DEFAULT_NOTIFY_EMAIL = "code@acypher.com"
+DEFAULT_INTERVAL_DAYS = 3
+
+STORE_NAMES = (
+    "Chrome Web Store",
+    "Firefox AMO",
+    "Safari (Mac App Store)",
+    "Safari (iOS App Store)",
+)
 
 
 def load_env() -> None:
@@ -67,37 +75,34 @@ def notify_email() -> str:
     return os.environ.get("PUBLISH_CHECK_NOTIFY_EMAIL", DEFAULT_NOTIFY_EMAIL).strip() or DEFAULT_NOTIFY_EMAIL
 
 
-def daily_hour() -> int:
-    raw = os.environ.get("PUBLISH_CHECK_DAILY_HOUR", "9").strip()
+def interval_days() -> int:
+    raw = os.environ.get("PUBLISH_CHECK_INTERVAL_DAYS", str(DEFAULT_INTERVAL_DAYS)).strip()
     try:
-        hour = int(raw)
+        days = int(raw)
     except ValueError:
-        hour = 9
-    return max(0, min(23, hour))
+        days = DEFAULT_INTERVAL_DAYS
+    return max(1, days)
 
 
-def daily_minute() -> int:
-    raw = os.environ.get("PUBLISH_CHECK_DAILY_MINUTE", "0").strip()
-    try:
-        minute = int(raw)
-    except ValueError:
-        minute = 0
-    return max(0, min(59, minute))
+def collect_statuses(version: str) -> list[live.LiveStatus]:
+    return live.store_statuses(version)
 
 
 def is_live(version: str) -> bool:
-    statuses = [live.chrome_status(version), live.firefox_status(version), live.safari_status(version)]
-    return all(item.state == "LIVE" for item in statuses)
+    return all(item.state == "LIVE" for item in collect_statuses(version))
 
 
-def send_live_email(version: str, to_email: str) -> None:
-    subject = f"Nunus version {version} is now Live on all stores"
-    body = (
-        f"Nunus {version} is now live on the Chrome Web Store, Firefox AMO, "
-        f"and Mac App Store (Safari).\n\n"
-        f"The daily publish-check watcher has been stopped.\n"
-    )
+def format_status_lines(statuses: list[live.LiveStatus]) -> list[str]:
+    lines: list[str] = []
+    for item in statuses:
+        line = f"- {item.store}: {item.state} — {item.summary}"
+        lines.append(line)
+        if item.detail:
+            lines.append(f"  {item.detail}")
+    return lines
 
+
+def send_email(subject: str, body: str, to_email: str) -> None:
     message = EmailMessage()
     message["Subject"] = subject
     message["To"] = to_email
@@ -142,13 +147,55 @@ def send_live_email(version: str, to_email: str) -> None:
     )
 
 
+def send_live_email(version: str, statuses: list[live.LiveStatus], to_email: str) -> None:
+    subject = f"Nunus version {version} is now Live on all stores"
+    body_lines = [
+        f"Nunus {version} is now live on all stores:",
+        "",
+        *format_status_lines(statuses),
+        "",
+        "The publish-check watcher has been stopped.",
+    ]
+    send_email(subject, "\n".join(body_lines), to_email)
+
+
+def send_progress_email(version: str, statuses: list[live.LiveStatus], to_email: str) -> None:
+    live_items = [item for item in statuses if item.state == "LIVE"]
+    pending_items = [item for item in statuses if item.state != "LIVE"]
+    subject = f"Nunus {version} publish check — {len(pending_items)} store(s) not live yet"
+    body_lines = [
+        f"Publish-check for Nunus {version} (every {interval_days()} days):",
+        "",
+        f"Live ({len(live_items)}/{len(statuses)}):",
+    ]
+    if live_items:
+        body_lines.extend(format_status_lines(live_items))
+    else:
+        body_lines.append("- none yet")
+
+    body_lines.extend(["", f"Not complete ({len(pending_items)}/{len(statuses)}):"])
+    if pending_items:
+        body_lines.extend(format_status_lines(pending_items))
+    else:
+        body_lines.append("- none")
+
+    body_lines.extend(
+        [
+            "",
+            "The watcher will check again in "
+            f"{interval_days()} day(s) and email another update until all stores are live.",
+        ]
+    )
+    send_email(subject, "\n".join(body_lines), to_email)
+
+
 def write_launch_agent(run_script: Path) -> Path:
     plist_path = launch_agent_path()
     plist_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "Label": LAUNCH_AGENT_LABEL,
         "ProgramArguments": ["/bin/bash", str(run_script)],
-        "StartCalendarInterval": {"Hour": daily_hour(), "Minute": daily_minute()},
+        "StartInterval": interval_days() * 86400,
         "StandardOutPath": str(LOG_FILE),
         "StandardErrorPath": str(LOG_FILE),
         "RunAtLoad": False,
@@ -176,6 +223,7 @@ def setup_watch(version: str | None = None) -> int:
     load_env()
     target = version or manifest_version()
     email = notify_email()
+    days = interval_days()
     run_script = SCRIPT_DIR / "run-publish-check-watch.sh"
     if not run_script.is_file():
         raise RuntimeError(f"missing runner script: {run_script}")
@@ -185,15 +233,17 @@ def setup_watch(version: str | None = None) -> int:
             "version": target,
             "repo_root": str(ROOT),
             "notify_email": email,
+            "interval_days": days,
             "started_at": datetime.now(timezone.utc).isoformat(),
         }
     )
     plist_path = write_launch_agent(run_script)
     load_launch_agent(plist_path)
-    log(f"setup daily publish-check for version {target} -> {email} at {daily_hour():02d}:{daily_minute():02d}")
-    print(f"Daily publish-check armed for Nunus {target}.")
+    log(f"setup publish-check for version {target} -> {email} every {days} day(s)")
+    print(f"Publish-check armed for Nunus {target}.")
     print(f"  Notify: {email}")
-    print(f"  Schedule: every day at {daily_hour():02d}:{daily_minute():02d} local time")
+    print(f"  Schedule: every {days} day(s)")
+    print(f"  Stores: {', '.join(STORE_NAMES)}")
     print(f"  Log: {LOG_FILE}")
     print(f"  Launch agent: {plist_path}")
     return 0
@@ -203,9 +253,9 @@ def stop_watch(*, quiet: bool = False) -> int:
     plist_path = launch_agent_path()
     unload_launch_agent(plist_path)
     clear_watch()
-    log("stopped daily publish-check watcher")
+    log("stopped publish-check watcher")
     if not quiet:
-        print("Daily publish-check watcher stopped.")
+        print("Publish-check watcher stopped.")
     return 0
 
 
@@ -215,6 +265,7 @@ def show_status() -> int:
     if watch:
         print(f"Watching version: {watch.get('version', '?')}")
         print(f"Notify email: {watch.get('notify_email', notify_email())}")
+        print(f"Interval: every {watch.get('interval_days', interval_days())} day(s)")
         print(f"Started: {watch.get('started_at', '?')}")
     else:
         print("No active publish-check watch.")
@@ -236,25 +287,40 @@ def run_watch() -> int:
         return 1
 
     to_email = str(watch.get("notify_email") or notify_email()).strip() or notify_email()
-    log(f"running daily publish-check for version {version}")
+    log(f"running publish-check for version {version}")
 
     try:
-        release_note = live.try_release_safari_version(version)
-        if release_note:
-            log(release_note)
+        for release_note in (
+            live.try_release_safari_version(version),
+            live.try_release_safari_ios_version(version),
+        ):
+            if release_note:
+                log(release_note)
 
-        if not is_live(version):
-            log(f"version {version} not live on all stores yet; no action")
+        statuses = collect_statuses(version)
+        live_count = sum(1 for item in statuses if item.state == "LIVE")
+
+        if is_live(version):
+            log(f"version {version} is live on all stores; sending email to {to_email}")
+            send_live_email(version, statuses, to_email)
+            log(f"email sent to {to_email}")
+            stop_watch(quiet=True)
+            log(f"stopped publish-check watcher after {version} went live")
+            print(f"Nunus {version} is live on all stores; notified {to_email} and stopped checks.")
             return 0
 
-        log(f"version {version} is live on all stores; sending email to {to_email}")
-        send_live_email(version, to_email)
-        log(f"email sent to {to_email}")
-        stop_watch(quiet=True)
-        log(f"stopped daily publish-check watcher after {version} went live")
-        print(f"Nunus {version} is live on all stores; notified {to_email} and stopped daily checks.")
+        log(
+            f"version {version} not live on all stores ({live_count}/{len(statuses)}); "
+            f"sending progress email to {to_email}"
+        )
+        send_progress_email(version, statuses, to_email)
+        log(f"progress email sent to {to_email}")
+        print(
+            f"Nunus {version}: {live_count}/{len(statuses)} stores live; "
+            f"progress report sent to {to_email}."
+        )
         return 0
-    except Exception as exc:  # noqa: BLE001 - daily job should log and continue until next run
+    except Exception as exc:  # noqa: BLE001 - scheduled job should log and continue until next run
         log(f"error during publish-check watch: {exc}")
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -264,11 +330,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    setup = sub.add_parser("setup", help="Arm daily publish-check for a published version")
+    setup = sub.add_parser("setup", help="Arm publish-check for a published version")
     setup.add_argument("--version", metavar="X.Y.Z", help="Version to watch (default: manifest.json)")
 
-    sub.add_parser("run", help="Run one daily publish-check (used by launchd)")
-    sub.add_parser("stop", help="Stop daily publish-check and remove launch agent")
+    sub.add_parser("run", help="Run one publish-check (used by launchd)")
+    sub.add_parser("stop", help="Stop publish-check and remove launch agent")
     sub.add_parser("status", help="Show current watch state")
 
     args = parser.parse_args()

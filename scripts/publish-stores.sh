@@ -175,6 +175,6 @@ echo "Monitor review status in App Store Connect."
 
 if [[ "${PUBLISH_CHECK_SKIP_DAILY:-}" != "1" ]]; then
   echo
-  echo "== Arm daily publish-check until live =="
+  echo "== Arm publish-check until live =="
   "$SCRIPT_DIR/setup-publish-check-daily.sh" --version "$VERSION"
 fi

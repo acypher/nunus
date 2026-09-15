@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Archive and export the macOS Safari host app for App Store Connect.
+#
+# Uses Xcode Automatic signing with the login keychain — the normal macOS workflow.
+# iOS uses a separate headless signing path; see build-safari-ios.sh.
 
 set -euo pipefail
 

@@ -116,7 +116,7 @@ Each release also increments Apple `CURRENT_PROJECT_VERSION` in the Safari Xcode
 
 | Store | What to set | Where to get it |
 |---|---|---|
-| Chrome | `CHROME_EXTENSION_ID`, OAuth client + refresh token | [Chrome Web Store API](https://developer.chrome.com/docs/webstore/using-api) — enable API in Google Cloud, OAuth consent, one-time auth for refresh token |
+| Chrome | `CHROME_EXTENSION_ID`, OAuth client + refresh token | [Chrome Web Store API](https://developer.chrome.com/docs/webstore/using-api); step-by-step: [scripts/docs/chrome-oauth-setup.md](scripts/docs/chrome-oauth-setup.md) |
 | Firefox | `AMO_JWT_ISSUER`, `AMO_JWT_SECRET` | [addons.mozilla.org/developers](https://addons.mozilla.org/developers/) → Tools → Manage API Keys |
 | Safari (Mac) | `APPLE_TEAM_ID` + App Store Connect API key **or** `APPLE_ID` + app-specific password | [developer.apple.com/account](https://developer.apple.com/account) — Team ID; API keys under Users and Access → Keys |
 

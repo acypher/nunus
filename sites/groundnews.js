@@ -229,9 +229,10 @@
     return norm(clone.textContent) || '';
   }
 
-  /** Feed surfaces (home, local, blindspot, topics); not individual article pages. */
+  /** Main front page only; not topic, local, blindspot, or article surfaces. */
   function isHomepage() {
-    return !/^\/article\//.test(window.location.pathname);
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    return path === '/';
   }
 
   window.NunusSites = window.NunusSites || {};

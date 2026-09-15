@@ -5,6 +5,7 @@
 #   ./scripts/version-commit.sh "what changed in this release"
 #   ./scripts/version-commit.sh --package "also build zip + xpi"
 #   ./scripts/version-commit.sh --major "new publication or breaking change"
+#   ./scripts/version-commit.sh --patch "patch release"
 #   ./scripts/version-commit.sh --version 2.0.0 "explicit version"
 #   ./scripts/version-commit.sh --dry-run "preview only"
 #   ./scripts/version-commit.sh --skip-push "commit and tag locally only"
@@ -23,11 +24,11 @@ source "$SCRIPT_DIR/lib/load-release-env.sh"
 DRY_RUN=0
 SKIP_PUSH=0
 PACKAGE=0
-BUMP_ARGS=()
+BUMP_ARGS=(--minor)
 MESSAGE=""
 
 usage() {
-  sed -n '2,12p' "$0" >&2
+  sed -n '2,14p' "$0" >&2
   exit 1
 }
 
@@ -36,10 +37,12 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift ;;
     --skip-push) SKIP_PUSH=1; shift ;;
     --package) PACKAGE=1; shift ;;
-    --major) BUMP_ARGS+=(--major); shift ;;
+    --major) BUMP_ARGS=(--major); shift ;;
+    --patch) BUMP_ARGS=(--patch); shift ;;
+    --minor) BUMP_ARGS=(--minor); shift ;;
     --version)
       [[ $# -ge 2 ]] || usage
-      BUMP_ARGS+=(--version "$2")
+      BUMP_ARGS=(--version "$2")
       shift 2
       ;;
     -h|--help) usage ;;

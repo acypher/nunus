@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Arm daily publish-check after a store publish.
+# Arm publish-check after a store publish (every 3 days by default).
 #
 # Usage:
 #   ./scripts/setup-publish-check-daily.sh
@@ -13,6 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=lib/load-release-env.sh
 source "$SCRIPT_DIR/lib/load-release-env.sh"
+# shellcheck source=lib/resolve-python.sh
+source "$SCRIPT_DIR/lib/resolve-python.sh"
 
 VERSION=""
 COMMAND=(setup)
@@ -48,4 +50,4 @@ if [[ "${COMMAND[0]}" == setup && -n "$VERSION" ]]; then
   ARGS+=(--version "$VERSION")
 fi
 
-exec python3 "$SCRIPT_DIR/publish_check_watch.py" "${ARGS[@]}"
+exec "$(resolve_python3)" "$SCRIPT_DIR/publish_check_watch.py" "${ARGS[@]}"

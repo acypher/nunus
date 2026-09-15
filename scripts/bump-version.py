@@ -29,6 +29,11 @@ def format_version(parts: tuple[int, int, int]) -> str:
     return f"{parts[0]}.{parts[1]}.{parts[2]}"
 
 
+def bump_patch(current: str) -> str:
+    major, minor, patch = parse_version(current)
+    return format_version((major, minor, patch + 1))
+
+
 def bump_minor(current: str) -> str:
     major, minor, _patch = parse_version(current)
     return format_version((major, minor + 1, 0))
@@ -77,6 +82,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Bump Nunus version across all release files.")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--major", action="store_true", help="Bump major version (X.0.0).")
+    group.add_argument("--minor", action="store_true", help="Bump minor version (X.Y.0).")
+    group.add_argument(
+        "--patch",
+        action="store_true",
+        help="Bump patch version (X.Y.Z). Default when no bump flag is set.",
+    )
     group.add_argument("--version", metavar="X.Y.Z", help="Set an explicit version.")
     parser.add_argument(
         "--dry-run",
@@ -98,8 +109,10 @@ def main() -> int:
             return 1
     elif args.major:
         new_version = bump_major(current)
-    else:
+    elif args.minor:
         new_version = bump_minor(current)
+    else:
+        new_version = bump_patch(current)
 
     new_build = current_build + 1
 
