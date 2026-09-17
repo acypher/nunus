@@ -598,7 +598,7 @@
 
   const OPINION_SUMMARY_STORAGE_KEY = 'nunus_nyt_opinion_summaries_v4';
   const OPINION_SUMMARY_CLASS = 'nunus-opinion-summary';
-  const OPINION_SUMMARY_MAX_PARALLEL = 3;
+  const OPINION_SUMMARY_MAX_PARALLEL = 2;
   const OPINION_SUMMARY_MAX_CHARS = 420;
   const OPINION_SUMMARY_MIN_CHARS = 40;
   const OLLAMA_CHAT_URL = 'http://127.0.0.1:11434/api/chat';
@@ -1041,7 +1041,18 @@
         const data = await res.json();
         const models = Array.isArray(data?.models) ? data.models : [];
         const names = models.map(m => m?.name || m?.model).filter(Boolean);
-        const prefer = names.find(n => /llama3\.2:3b|llama3\.2|qwen2\.5:3b|qwen2\.5|mistral|phi3/i.test(n));
+        const preferRes = [
+          /qwen2\.5:14b/i,
+          /qwen2\.5:32b/i,
+          /qwen2\.5(?!:3b)/i,
+          /qwen3/i,
+          /mistral/i,
+          /llama3\.1|llama3\.3/i,
+          /llama3\.2(?!:3b)/i,
+          /phi3/i,
+          /llama3\.2:3b|qwen2\.5:3b/i
+        ];
+        const prefer = preferRes.map(re => names.find(n => re.test(n))).find(Boolean);
         ollamaModelName = prefer || names[0] || null;
         return ollamaModelName;
       } catch (_) {
