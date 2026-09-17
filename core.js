@@ -302,8 +302,7 @@ async function markAsViewed(site, articleId, canonicalRoot, allRoots) {
 }
 
 function siteIsActivePage(site) {
-  if (typeof site.isHomepage !== 'function') return true;
-  return !!site.isHomepage();
+  return typeof site.isHomepage === 'function' && !!site.isHomepage();
 }
 
 function stripNunusVisuals(articlesMap) {
@@ -343,14 +342,23 @@ function watchLocation(cb) {
     cb();
   };
   window.addEventListener('popstate', check);
+  window.addEventListener('hashchange', check);
+  try {
+    if (window.navigation && typeof window.navigation.addEventListener === 'function') {
+      window.navigation.addEventListener('currententrychange', check);
+    }
+  } catch (_) {}
   for (const name of ['pushState', 'replaceState']) {
     const orig = history[name];
     if (typeof orig !== 'function') continue;
-    history[name] = function (...args) {
+    if (orig.__nunusWrapped) continue;
+    const wrapped = function (...args) {
       const ret = orig.apply(this, args);
       check();
       return ret;
     };
+    wrapped.__nunusWrapped = true;
+    history[name] = wrapped;
   }
 }
 
@@ -947,7 +955,10 @@ async function run(site) {
 
   // MutationObserver handles dynamic content
   const observer = new MutationObserver(() => {
-    if (!siteIsActivePage(site)) return;
+    if (!siteIsActivePage(site)) {
+      stripNunusVisuals(articles);
+      return;
+    }
     if (typeof requestIdleCallback === 'function') {
       requestIdleCallback(mergeNewArticles);
     } else {

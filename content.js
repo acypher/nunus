@@ -91,6 +91,10 @@ function nunusInstallNytDebugOverlay(site) {
   });
 }
 
+function siteIsHomepage(site) {
+  return typeof site.isHomepage === 'function' && !!site.isHomepage();
+}
+
 (function() {
   const host = window.location.hostname;
   let site = null;
@@ -109,11 +113,11 @@ function nunusInstallNytDebugOverlay(site) {
     site = window.NunusSites?.epochtimes;
   }
 
-  if (site && typeof window.NunusRun === 'function') {
+  if (site && typeof window.NunusRun === 'function' && siteIsHomepage(site)) {
     void window.NunusRun(site).catch(() => {});
   }
 
-  if (site && nunusNytDebugEnabled()) {
+  if (site && nunusNytDebugEnabled() && siteIsHomepage(site)) {
     nunusInstallNytDebugOverlay(site);
     let debounce;
     const mo = new MutationObserver(() => {

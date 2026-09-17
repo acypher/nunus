@@ -605,7 +605,16 @@
 
   function isHomepage() {
     const path = window.location.pathname;
-    return path === '/' || path === '' || path === '/index.html';
+    if (path !== '/' && path !== '' && path !== '/index.html') return false;
+    // SPA click-through can paint the story before the path updates.
+    if (
+      document.querySelector('section[name="articleBody"]') ||
+      document.querySelector('[data-testid="article-body"]') ||
+      document.querySelector('article#story')
+    ) {
+      return false;
+    }
+    return true;
   }
 
   window.NunusSites = window.NunusSites || {};
