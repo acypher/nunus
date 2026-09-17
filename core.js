@@ -213,6 +213,12 @@ function isArticleViewed(viewed, hostname, articleId) {
   return viewed.has(getViewedKey(hostname, articleId)) || viewed.has(articleId);
 }
 
+function isCurrentPageArticle(articleId) {
+  const pageKey = normalizeArticleUrlKey(window.location.href);
+  const idKey = normalizeArticleUrlKey(articleId);
+  return !!(pageKey && idKey && pageKey === idKey);
+}
+
 function normalizeArticleUrlKey(rawUrl) {
   if (!rawUrl) return null;
   try {
@@ -434,6 +440,11 @@ function syncGrayForElements(
   const topicRoot = pickArticleRootForTopics(elements);
   const topicTitle = getArticleDisplayTitle(site, topicRoot, id);
   for (const element of elements) {
+    if (isCurrentPageArticle(id)) {
+      removeViewedStyle(element);
+      removeTopicBlockedStyle(element);
+      continue;
+    }
     if (articleMatchesBlockTopics(site, topicRoot, topicTitle, topics)) {
       removeViewedStyle(element);
       applyTopicBlockedStyle(element);

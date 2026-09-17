@@ -412,6 +412,17 @@
     return t || '';
   }
 
+  /** Story body on an article page — never a homepage card; never gray this. */
+  function isMainStoryRoot(root) {
+    if (!root || root.nodeType !== 1) return false;
+    if (root.id === 'story') return true;
+    if (root.matches?.('article#story, article[data-testid="article"]')) return true;
+    return !!(
+      root.querySelector('section[name="articleBody"]') ||
+      root.querySelector('[data-testid="article-body"]')
+    );
+  }
+
   function findArticles() {
     const articles = new Map();
     const add = (id, el) => {
@@ -420,10 +431,13 @@
       articles.get(id).add(el);
     };
 
+    const pageId = canonicalArticleId(window.location.href);
     for (const root of collectStoryRoots()) {
       if (isArticleRootEffectivelyHidden(root)) continue;
+      if (isMainStoryRoot(root)) continue;
       const title = getTitleFromRoot(root);
       const id = getArticleUrl(root);
+      if (pageId && id && canonicalArticleId(id) === pageId) continue;
       if (title && id) add(id, root);
     }
 
