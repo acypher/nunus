@@ -1,0 +1,50 @@
+---
+description: Never claim an NYT Opinion summary change works without verifying it against the live site
+globs: sites/nyt.js
+alwaysApply: false
+---
+
+# NYT Opinion summaries: verify before you claim
+
+Every change to the Opinion-summary pipeline must be verified by the agent
+against nytimes.com **before** the response ends. The repo owner is not the
+regression test. Do not say a summary change works, is fixed, or is improved
+until the check below has been run in this turn and its output read.
+
+## How to verify
+
+```bash
+python3 scripts/verify-opinion-summaries.py
+```
+
+It loads the live homepage in a browser with the unpacked extension, waits for
+the Opinions block, opens each summarized article, and fails on:
+
+- **COPIED** — the summary shares an 8-word verbatim run with the article opening
+- **TEASER** — it withholds the point instead of stating it
+- **SHORT** — under the extension's own minimum length
+- **NO-TEXT** — the article body could not be read, so the summary is unverifiable
+
+A non-zero exit is a failing change. Read the summaries in the report next to
+the article openings and judge the substance yourself; the automated flags catch
+copying, not thin thinking.
+
+## Rules the pipeline must keep
+
+1. **A rendered summary is always model output about the article body.** NYT's
+   dek, `meta[name=description]`, the oembed blurb, and the article's own
+   opening sentences are teasers or source text — never a summary. If they are
+   all that is available, render nothing.
+2. **Silence beats a fake summary.** When the article text cannot be fetched,
+   log why (`noteOpinionSummaryFailure`) and leave the card alone.
+3. **Copied text is a bug, not a fallback.** `summaryLiftsArticleText` rejects
+   model output that reuses a long verbatim run from the article.
+
+## Known blocker
+
+NYT fronts article pages with DataDome. A browser it does not trust gets
+`HTTP 403` on every article request — fetch, XHR, iframe, and top-level
+navigation alike — so the extension has no text to summarize and correctly shows
+nothing. The verification profile lives at `~/.cache/nunus-verify-profile`; if a
+run reports 403 for every article, that profile needs a real NYT session before
+the check can say anything about summary quality.

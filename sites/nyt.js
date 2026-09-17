@@ -618,6 +618,7 @@
     'nunus_nyt_opinion_summaries_v1'
   ];
   const OPINION_SUMMARY_CLASS = 'nunus-opinion-summary';
+  const OPINION_SUMMARY_UNAVAILABLE = 'Opinion Summaries not available';
   const OPINION_SUMMARY_MAX_PARALLEL = 2;
   const OPINION_SUMMARY_MAX_CHARS = 420;
   const OPINION_SUMMARY_MIN_CHARS = 40;
@@ -632,6 +633,7 @@
   let opinionSummaryPersistTimer = null;
   let opinionSummaryQueue = [];
   let opinionSummaryActive = 0;
+  let opinionSummaryAttempted = false;
   let opinionSummaryObserverStarted = false;
 
   function opinionExt() {
@@ -854,23 +856,32 @@
     return ((sp > 40 ? slice.slice(0, sp) : slice).trim() + '…');
   }
 
-  function firstSentences(text, maxSentences) {
-    const t = cleanExtractedText(text);
-    if (!t) return null;
-    const parts = t.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g);
-    if (!parts || !parts.length) return truncateSummary(t);
-    return truncateSummary(parts.slice(0, maxSentences).join(' ').trim());
+  const LIFTED_RUN_WORDS = 8;
+
+  /** Missing summaries are silent by design; say why once per article. */
+  function noteOpinionSummaryFailure(url, reason) {
+    if (!reason) return;
+    console.warn('[Nunus] no Opinion summary for ' + url + ' — ' + reason);
   }
 
-  function metaContent(doc, selectors) {
-    for (const sel of selectors) {
-      const el = doc.querySelector(sel);
-      if (!el) continue;
-      const c = el.getAttribute('content') || el.getAttribute('value') || '';
-      const s = truncateSummary(c);
-      if (s && s.length >= OPINION_SUMMARY_MIN_CHARS) return s;
+  function summaryWords(text) {
+    return (cleanExtractedText(text) || '').toLowerCase().match(/[a-z0-9']+/g) || [];
+  }
+
+  /**
+   * True when the summary reuses a long verbatim run from the article — i.e. it
+   * is copied opening text, not a summary. Names and quoted phrases are short;
+   * eight consecutive words in the same order is lifted prose.
+   */
+  function summaryLiftsArticleText(summary, paras) {
+    const words = summaryWords(summary);
+    if (words.length < LIFTED_RUN_WORDS) return false;
+    const haystack = ' ' + summaryWords((paras || []).join(' ')).join(' ') + ' ';
+    for (let i = 0; i + LIFTED_RUN_WORDS <= words.length; i += 1) {
+      const run = ' ' + words.slice(i, i + LIFTED_RUN_WORDS).join(' ') + ' ';
+      if (haystack.includes(run)) return true;
     }
-    return null;
+    return false;
   }
 
   function isTeaserSummary(text) {
@@ -888,29 +899,6 @@
     if (t.length < 90 && !hasProper && !hasConcrete) return true;
     if (t.length < 70 && (t.match(/[.!?]/g) || []).length <= 1 && !hasProper) return true;
     return false;
-  }
-
-  function extractJsonLdDescription(doc) {
-    for (const script of doc.querySelectorAll('script[type="application/ld+json"]')) {
-      let data;
-      try {
-        data = JSON.parse(script.textContent || '');
-      } catch (_) {
-        continue;
-      }
-      const nodes = Array.isArray(data) ? data : data['@graph'] ? data['@graph'] : [data];
-      for (const node of nodes) {
-        if (!node || typeof node !== 'object') continue;
-        const typ = node['@type'];
-        const types = Array.isArray(typ) ? typ : [typ];
-        if (!types.some(t => /Article|NewsArticle|Opinion|Reportage/i.test(String(t || '')))) {
-          continue;
-        }
-        const d = cleanExtractedText(node.description || node.articleBody || '');
-        if (d && d.length >= OPINION_SUMMARY_MIN_CHARS) return d;
-      }
-    }
-    return null;
   }
 
   function extractArticlePayload(html) {
@@ -957,76 +945,7 @@
       }
     }
 
-    const meta = metaContent(doc, [
-      'meta[name="description"]',
-      'meta[property="og:description"]',
-      'meta[name="twitter:description"]'
-    ]);
-    const ld = extractJsonLdDescription(doc);
-    let dek = null;
-    const summaryEls = doc.querySelectorAll(
-      '#article-summary, [data-testid="article-summary"], p#article-summary'
-    );
-    for (const el of summaryEls) {
-      const s = cleanExtractedText(el.textContent);
-      if (s && s.length >= OPINION_SUMMARY_MIN_CHARS) {
-        dek = s;
-        break;
-      }
-    }
-
-    return { title, author, paras, meta, ld, dek, doc };
-  }
-
-  function buildSubstanceSummaryFromPayload(payload) {
-    if (!payload) return null;
-    const parts = [];
-    // Prefer real article prose over marketing meta.
-    if (payload.paras && payload.paras.length) {
-      const joined = payload.paras.slice(0, 4).join(' ');
-      const s = firstSentences(joined, 3);
-      if (s && !isTeaserSummary(s)) parts.push(s);
-      else if (s) parts.push(s);
-    }
-    for (const cand of [payload.dek, payload.ld, payload.meta]) {
-      if (!cand || isTeaserSummary(cand)) continue;
-      if (!parts.length) parts.push(firstSentences(cand, 2) || cand);
-    }
-    if (!parts.length) {
-      for (const cand of [payload.dek, payload.ld, payload.meta]) {
-        if (cand && cand.length >= OPINION_SUMMARY_MIN_CHARS) {
-          parts.push(cand);
-          break;
-        }
-      }
-    }
-    if (!parts.length) return null;
-
-    let summary = truncateSummary(parts[0]);
-    if (!summary) return null;
-
-    // Prefatory author when the blurb doesn't already name them.
-    if (payload.author) {
-      const authorLast = payload.author.split(/\s+/).pop();
-      if (authorLast && !new RegExp('\\b' + authorLast.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(summary)) {
-        const lead = payload.author.includes(',')
-          ? payload.author
-          : payload.author;
-        // "X argues/examines..." only when summary doesn't already start with a name.
-        if (!/^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}\s+(argues|says|writes|examines)/.test(summary)) {
-          summary = truncateSummary(lead + ' — ' + summary);
-        }
-      }
-    }
-    if (isTeaserSummary(summary) && payload.paras && payload.paras.length >= 2) {
-      const richer = firstSentences(payload.paras.slice(0, 5).join(' '), 3);
-      if (richer && richer.length > summary.length) summary = truncateSummary(richer);
-    }
-    return summary;
-  }
-
-  function extractSummaryFromHtml(html) {
-    return buildSubstanceSummaryFromPayload(extractArticlePayload(html));
+    return { title, author, paras, doc };
   }
 
   function opinionSummaryPromptParts(payload, url) {
@@ -1219,7 +1138,40 @@
       }
     }
     if (canon) el.dataset.nunusSummaryUrl = canon;
+    delete el.dataset.nunusSummaryNotice;
     el.textContent = summary;
+  }
+
+  /**
+   * When no Opinion card could be summarized, say so once, on the first card,
+   * rather than leaving the block looking as though summaries are switched off.
+   */
+  function syncOpinionSummaryNotice(roots) {
+    const first = roots && roots[0];
+    const existing = document.querySelector(
+      '.' + OPINION_SUMMARY_CLASS + '[data-nunus-summary-notice="1"]'
+    );
+    const haveSummary = (roots || []).some(root => {
+      const el = root.querySelector('.' + OPINION_SUMMARY_CLASS);
+      return el && el.dataset.nunusSummaryNotice !== '1';
+    });
+    if (!first || haveSummary) {
+      if (existing) existing.remove();
+      return;
+    }
+    // Retries keep re-queueing failed cards; leave the notice up rather than
+    // flickering it off and on between attempts.
+    const settled =
+      opinionSummaryAttempted && !opinionSummaryActive && !opinionSummaryQueue.length;
+    if (!settled) return;
+    if (existing && first.contains(existing)) return;
+    if (existing) existing.remove();
+    renderOpinionSummary(first, OPINION_SUMMARY_UNAVAILABLE);
+    const el = first.querySelector('.' + OPINION_SUMMARY_CLASS);
+    if (el) {
+      el.dataset.nunusSummaryNotice = '1';
+      delete el.dataset.nunusSummaryUrl;
+    }
   }
 
   function pumpOpinionSummaryQueue() {
@@ -1234,30 +1186,19 @@
         .finally(() => {
           opinionSummaryActive -= 1;
           pumpOpinionSummaryQueue();
+          if (!opinionSummaryActive && !opinionSummaryQueue.length) {
+            try {
+              syncOpinionSummaryNotice(collectOpinionsSectionRoots());
+            } catch (_) {}
+          }
         });
     }
   }
 
   function enqueueOpinionSummary(task) {
+    opinionSummaryAttempted = true;
     opinionSummaryQueue.push(task);
     pumpOpinionSummaryQueue();
-  }
-
-  async function fetchOpinionSummaryFromOembed(url) {
-    const endpoint =
-      'https://www.nytimes.com/svc/oembed/json/?url=' + encodeURIComponent(url);
-    const res = await fetch(endpoint, {
-      method: 'GET',
-      credentials: 'omit',
-      cache: 'no-cache',
-      headers: { Accept: 'application/json' }
-    });
-    if (!res.ok) throw new Error('oembed HTTP ' + res.status);
-    const data = await res.json();
-    const raw = data && (data.summary || data.description || '');
-    const summary = truncateSummary(raw);
-    if (!summary || isTeaserSummary(summary)) return null;
-    return summary;
   }
 
   async function fetchOpinionArticlePayload(url) {
@@ -1290,45 +1231,49 @@
       return cached.summary || null;
     }
 
+    // A summary is only ever the model's own prose about the article body.
+    // NYT's dek, meta description and oembed blurb are marketing teasers, and
+    // the opening paragraphs are the text the reader is deciding whether to
+    // read — showing either of those as a "summary" is worse than showing none.
     let payload = null;
+    let failure = null;
     try {
       payload = await fetchOpinionArticlePayload(url);
-    } catch (_) {}
+    } catch (err) {
+      failure = 'fetch: ' + (err && err.message ? err.message : 'failed');
+    }
+    if (payload && !(payload.paras || []).length) failure = 'no article body text';
 
     let summary = null;
-    let source = null;
-    if (payload) {
+    if (payload && !failure) {
       try {
         summary = await summarizeWithOllama(payload, url);
-        if (summary) source = 'ollama';
-      } catch (_) {}
-      if (!summary) {
-        summary = cached?.summary || buildSubstanceSummaryFromPayload(payload);
-        if (summary) source = cached?.source || 'extract';
+        if (!summary) failure = 'model returned nothing usable';
+      } catch (err) {
+        failure = 'ollama: ' + (err && err.message ? err.message : 'failed');
+      }
+      if (summary && summaryLiftsArticleText(summary, payload.paras)) {
+        failure = 'model copied the article text';
+        summary = null;
+      }
+      if (summary && isTeaserSummary(summary)) {
+        failure = 'model produced a teaser';
+        summary = null;
       }
     }
 
-    if ((!summary || source !== 'ollama') && (!summary || isTeaserSummary(summary))) {
-      try {
-        const oembedSummary = await fetchOpinionSummaryFromOembed(url);
-        if (oembedSummary && (!summary || oembedSummary.length > summary.length)) {
-          summary = oembedSummary;
-          source = 'oembed';
-        }
-      } catch (_) {}
-    }
-
-    if (summary && summary.length >= OPINION_SUMMARY_MIN_CHARS) {
+    if (summary) {
       opinionSummaryMem.set(canon, {
         summary,
         ts: Date.now(),
-        source: source || 'extract',
-        model: source === 'ollama' ? ollamaModelName || model || null : null
+        source: 'ollama',
+        model: ollamaModelName || model || null
       });
-      if (source === 'ollama') schedulePersistOpinionSummaries();
+      schedulePersistOpinionSummaries();
       return summary;
     }
-    opinionSummaryMem.set(canon, { failed: true, ts: Date.now() });
+    opinionSummaryMem.set(canon, { failed: true, reason: failure, ts: Date.now() });
+    noteOpinionSummaryFailure(canon, failure);
     return null;
   }
 
@@ -1381,6 +1326,8 @@
         }
       });
     }
+
+    syncOpinionSummaryNotice(roots);
   }
 
   async function startOpinionsSummaries() {
@@ -1419,8 +1366,6 @@
     getArticleTitle: getTitleFromRoot,
     canonicalArticleId,
     startOpinionsSummaries,
-    collectOpinionsSectionRoots,
-    // Exposed for tests / debug
-    extractSummaryFromHtml
+    collectOpinionsSectionRoots
   };
 })();

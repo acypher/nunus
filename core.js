@@ -301,6 +301,59 @@ async function markAsViewed(site, articleId, canonicalRoot, allRoots) {
   await rememberArticleTitles(site, articleId, titleRoots, sessionViewed, hostname);
 }
 
+function siteIsActivePage(site) {
+  if (typeof site.isHomepage !== 'function') return true;
+  return !!site.isHomepage();
+}
+
+function stripNunusVisuals(articlesMap) {
+  if (articlesMap) {
+    for (const set of articlesMap.values()) {
+      for (const el of set) {
+        if (!(el instanceof Element)) continue;
+        removeViewedStyle(el);
+        removeTopicBlockedStyle(el);
+        if (el.dataset.nunusAlwaysGray === 'true') removeAlwaysGrayStyle(el);
+      }
+    }
+  }
+  for (const el of [...alwaysGrayRootsTracked]) {
+    if (el instanceof Element) removeAlwaysGrayStyle(el);
+  }
+  alwaysGrayRootsTracked.clear();
+  try {
+    document
+      .querySelectorAll(
+        '[data-nunus-viewed="true"], [data-nunus-topic-blocked="true"], [data-nunus-always-gray="true"]'
+      )
+      .forEach(el => {
+        removeViewedStyle(el);
+        removeTopicBlockedStyle(el);
+        if (el.dataset.nunusAlwaysGray === 'true') removeAlwaysGrayStyle(el);
+      });
+  } catch (_) {}
+}
+
+/** NYT (and similar) keep this content script after client-side navigation off `/`. */
+function watchLocation(cb) {
+  let href = window.location.href;
+  const check = () => {
+    if (window.location.href === href) return;
+    href = window.location.href;
+    cb();
+  };
+  window.addEventListener('popstate', check);
+  for (const name of ['pushState', 'replaceState']) {
+    const orig = history[name];
+    if (typeof orig !== 'function') continue;
+    history[name] = function (...args) {
+      const ret = orig.apply(this, args);
+      check();
+      return ret;
+    };
+  }
+}
+
 function applyViewedStyle(element) {
   element.style.opacity = VIEWED_STYLE.opacity;
   element.style.filter = VIEWED_STYLE.filter;
@@ -734,6 +787,7 @@ async function run(site) {
   const sessionViewed = getTabSessionViewedSet();
   let blockTopics = await loadBlockTopics();
   const articles = site.findArticles();
+  let onHomepage = siteIsActivePage(site);
 
   /** performance.now() when the headline first met the visibility rule this dwell episode */
   const dwellStartById = new Map();
@@ -756,6 +810,10 @@ async function run(site) {
 
   const mergeNewArticles = async () => {
     if (!isExtensionContextValid()) return;
+    if (!siteIsActivePage(site)) {
+      stripNunusVisuals(articles);
+      return;
+    }
     blockTopics = await loadBlockTopics();
     const sessionNow = getTabSessionViewedSet();
     const newArticles = site.findArticles();
@@ -787,22 +845,36 @@ async function run(site) {
     syncAlwaysGrayRoots(site);
   };
 
-  // Sync gray from persistent storage vs this tab's session; strip when session has the key.
-  for (const [id, elements] of articles) {
-    if (isArticleViewed(viewedArticles, hostname, id)) {
-      await rememberArticleTitles(site, id, [...elements], sessionViewed, hostname);
+  watchLocation(() => {
+    const nowHome = siteIsActivePage(site);
+    if (nowHome === onHomepage) return;
+    onHomepage = nowHome;
+    if (!nowHome) {
+      dwellStartById.clear();
+      stripNunusVisuals(articles);
+      return;
     }
-    syncGrayForElements(
-      site,
-      [...elements],
-      id,
-      viewedArticles,
-      sessionViewed,
-      hostname,
-      blockTopics
-    );
+    void mergeNewArticles();
+  });
+
+  if (onHomepage) {
+    // Sync gray from persistent storage vs this tab's session; strip when session has the key.
+    for (const [id, elements] of articles) {
+      if (isArticleViewed(viewedArticles, hostname, id)) {
+        await rememberArticleTitles(site, id, [...elements], sessionViewed, hostname);
+      }
+      syncGrayForElements(
+        site,
+        [...elements],
+        id,
+        viewedArticles,
+        sessionViewed,
+        hostname,
+        blockTopics
+      );
+    }
+    syncAlwaysGrayRoots(site);
   }
-  syncAlwaysGrayRoots(site);
 
   try {
     ext.storage.onChanged.addListener((changes, area) => {
@@ -815,6 +887,7 @@ async function run(site) {
 
   const checkVisibility = async () => {
     if (!isExtensionContextValid()) return;
+    if (!siteIsActivePage(site)) return;
     const now = performance.now();
     for (const [id, elements] of articles) {
       if (!trackedIds.has(id)) continue;
@@ -853,7 +926,18 @@ async function run(site) {
   const checkVisibilityLoop = () => {
     if (!isExtensionContextValid()) return;
     setTimeout(checkVisibilityLoop, CHECK_INTERVAL_MS);
+    const nowHome = siteIsActivePage(site);
+    if (nowHome !== onHomepage) {
+      onHomepage = nowHome;
+      if (!nowHome) {
+        dwellStartById.clear();
+        stripNunusVisuals(articles);
+      } else {
+        void mergeNewArticles();
+      }
+    }
     if (document.visibilityState === 'hidden' || visibilityCheckRunning) return;
+    if (!nowHome) return;
     visibilityCheckRunning = true;
     void checkVisibility().finally(() => {
       visibilityCheckRunning = false;
@@ -863,6 +947,7 @@ async function run(site) {
 
   // MutationObserver handles dynamic content
   const observer = new MutationObserver(() => {
+    if (!siteIsActivePage(site)) return;
     if (typeof requestIdleCallback === 'function') {
       requestIdleCallback(mergeNewArticles);
     } else {
@@ -872,7 +957,7 @@ async function run(site) {
   observer.observe(document.body, { childList: true, subtree: true });
 
   // One safety-net rescan for lazy-loaded content
-  setTimeout(mergeNewArticles, 2000);
+  if (onHomepage) setTimeout(mergeNewArticles, 2000);
 
   registerSkipGrayScroll(site, mergeNewArticles);
 }
