@@ -596,7 +596,13 @@
 
   /* —— Opinions homepage summaries (local Ollama; extractive fallback) —— */
 
-  const OPINION_SUMMARY_STORAGE_KEY = 'nunus_nyt_opinion_summaries_v4';
+  const OPINION_SUMMARY_STORAGE_KEY = 'nunus_nyt_opinion_summaries_v5';
+  const OPINION_SUMMARY_STALE_KEYS = [
+    'nunus_nyt_opinion_summaries_v4',
+    'nunus_nyt_opinion_summaries_v3',
+    'nunus_nyt_opinion_summaries_v2',
+    'nunus_nyt_opinion_summaries_v1'
+  ];
   const OPINION_SUMMARY_CLASS = 'nunus-opinion-summary';
   const OPINION_SUMMARY_MAX_PARALLEL = 2;
   const OPINION_SUMMARY_MAX_CHARS = 420;
@@ -1100,6 +1106,7 @@
     const ext = opinionExt();
     if (!ext?.storage?.local) return;
     try {
+      await ext.storage.local.remove(OPINION_SUMMARY_STALE_KEYS);
       const result = await ext.storage.local.get({ [OPINION_SUMMARY_STORAGE_KEY]: {} });
       const raw = result[OPINION_SUMMARY_STORAGE_KEY];
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
@@ -1134,7 +1141,8 @@
       out[url] = {
         summary: entry.summary,
         ts: entry.ts || Date.now(),
-        source: entry.source || 'extract'
+        source: entry.source || 'extract',
+        model: entry.model || null
       };
       n += 1;
       if (n >= 200) break;
@@ -1252,8 +1260,16 @@
   async function fetchOpinionSummary(url) {
     if (!isOpinionArticleUrl(url)) return null;
     const canon = canonicalArticleId(url) || url;
+    const model = await probeOllamaModel();
     const cached = opinionSummaryMem.get(canon);
-    if (cached?.source === 'ollama' && cached.summary && cached.summary.length >= OPINION_SUMMARY_MIN_CHARS) {
+    if (
+      cached?.source === 'ollama' &&
+      cached.model &&
+      model &&
+      cached.model === model &&
+      cached.summary &&
+      cached.summary.length >= OPINION_SUMMARY_MIN_CHARS
+    ) {
       return cached.summary;
     }
     if (cached?.failed && Date.now() - (cached.ts || 0) < 2 * 60 * 1000) {
@@ -1289,7 +1305,12 @@
     }
 
     if (summary && summary.length >= OPINION_SUMMARY_MIN_CHARS) {
-      opinionSummaryMem.set(canon, { summary, ts: Date.now(), source: source || 'extract' });
+      opinionSummaryMem.set(canon, {
+        summary,
+        ts: Date.now(),
+        source: source || 'extract',
+        model: source === 'ollama' ? ollamaModelName || model || null : null
+      });
       if (source === 'ollama') schedulePersistOpinionSummaries();
       return summary;
     }
@@ -1312,7 +1333,12 @@
       seen.add(canon);
 
       const cached = opinionSummaryMem.get(canon);
-      if (cached?.source === 'ollama' && cached.summary) {
+      if (
+        cached?.source === 'ollama' &&
+        cached.summary &&
+        ollamaModelName &&
+        cached.model === ollamaModelName
+      ) {
         renderOpinionSummary(root, cached.summary);
         continue;
       }
