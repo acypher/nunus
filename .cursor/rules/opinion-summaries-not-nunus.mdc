@@ -1,0 +1,12 @@
+---
+description: NYT Opinion Summaries is a separate extension — never add it to Nunus
+alwaysApply: true
+---
+
+# Opinion summaries are not Nunus
+
+**NYT Opinion Summaries** (currently 1.0.6) is a separate unpacked extension:
+
+`/Users/acypher/Projects/extensions/NYTOpinionSummaries`
+
+Nunus only grays headlines the user has already seen. Do not add Ollama, article-body fetch, homepage Opinion-card summaries, or `startOpinionsSummaries` to this repo. Summary work belongs in that other project.

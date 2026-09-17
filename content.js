@@ -113,14 +113,6 @@ function nunusInstallNytDebugOverlay(site) {
     void window.NunusRun(site).catch(() => {});
   }
 
-  if (
-    host.includes('nytimes.com') &&
-    site &&
-    typeof site.startOpinionsSummaries === 'function'
-  ) {
-    void site.startOpinionsSummaries().catch(() => {});
-  }
-
   if (site && nunusNytDebugEnabled()) {
     nunusInstallNytDebugOverlay(site);
     let debounce;
