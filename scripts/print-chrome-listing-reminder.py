@@ -15,10 +15,10 @@ from app_store_connect import load_release_env  # noqa: E402
 from store_listing_copy import description_source_path, listing_description, manifest_summary  # noqa: E402
 
 
-def chrome_devconsole_listing_url(extension_id: str) -> str:
-    if extension_id:
-        return f"https://chrome.google.com/webstore/devconsole/edit/{extension_id}/listing"
-    return "https://chrome.google.com/webstore/devconsole"
+def chrome_devconsole_listing_url(_extension_id: str) -> str:
+    # Deep /edit/{id}/listing URLs 404. The dashboard SPA is served only at
+    # the console root; open Nunus from the item list after sign-in.
+    return "https://chrome.google.com/webstore/devconsole/"
 
 
 def print_reminder(*, version: str | None = None) -> None:
@@ -35,12 +35,12 @@ def print_reminder(*, version: str | None = None) -> None:
     print()
     print("The Chrome API uploads the zip only. Update the store listing manually:")
     print()
-    print("  1. Open the Developer Dashboard listing editor:")
+    print("  1. Open the Chrome Developer Dashboard:")
     print(f"     {listing_url}")
     print()
     print("  2. Sign in as the Chrome Web Store publisher account if prompted.")
     print()
-    print("  3. Open the Store listing tab (or Listing details).")
+    print("  3. Open Nunus from the item list, then the Store listing tab.")
     print()
     print("  4. Short description — paste this exact text:")
     print("     ---")
