@@ -83,6 +83,8 @@ const LEGACY_STORAGE_KEY = 'nunusnyt_viewed_articles';
 const STORAGE_BLOCK_TOPICS_KEY = 'nunus_block_topics';
 const SESSION_KEY = 'nunus_session_viewed';
 const SESSION_TITLES_KEY = 'nunus_session_viewed_titles';
+/** Drop saved titles this long after last dwell on that article. */
+const TITLE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 
 /** storage key -> root kept ungrayed this session when the same story appears twice */
 const sessionCanonicalRootByKey = new Map();
@@ -189,14 +191,9 @@ async function getViewed() {
 
 async function loadViewedArticleTitles() {
   const result = await storageLocalGet({ [STORAGE_TITLES_KEY]: {} });
-  const raw = result[STORAGE_TITLES_KEY];
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  const out = {};
-  for (const [key, titles] of Object.entries(raw)) {
-    if (!Array.isArray(titles)) continue;
-    out[key] = [...new Set(titles.map(t => String(t).trim()).filter(Boolean))];
-  }
-  return out;
+  const { stored, changed } = prunePersistentTitleStorage(result[STORAGE_TITLES_KEY]);
+  if (changed) await storageLocalSet({ [STORAGE_TITLES_KEY]: stored });
+  return stored;
 }
 
 async function getViewedArticleTitles() {
@@ -238,22 +235,77 @@ function getArticleDisplayTitle(site, articleRoot, fallback = '') {
   return String(fallback || '').trim();
 }
 
+function isDisplayTitleText(text) {
+  const t = String(text || '').trim().replace(/\s+/g, ' ');
+  if (!t) return false;
+  if (/^https?:\/\//i.test(t) || t.includes('://')) return false;
+  if (/^[a-z0-9.-]+\.[a-z]{2,}\//i.test(t)) return false;
+  return true;
+}
+
+function titlesFromStoredEntry(entry) {
+  const raw = Array.isArray(entry) ? entry : entry && Array.isArray(entry.titles) ? entry.titles : [];
+  return [...new Set(raw.map(t => String(t).trim().replace(/\s+/g, ' ')).filter(isDisplayTitleText))];
+}
+
+function prunePersistentTitleStorage(raw) {
+  const now = Date.now();
+  const stored = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { stored, changed: !!raw };
+  }
+  let changed = false;
+  for (const [key, entry] of Object.entries(raw)) {
+    if (!key) {
+      changed = true;
+      continue;
+    }
+    const titles = titlesFromStoredEntry(entry);
+    if (!titles.length) {
+      changed = true;
+      continue;
+    }
+    const ts = Array.isArray(entry)
+      ? now
+      : Number(entry && entry.ts);
+    const stamp = Number.isFinite(ts) && ts > 0 ? ts : now;
+    if (now - stamp >= TITLE_MAX_AGE_MS) {
+      changed = true;
+      continue;
+    }
+    if (Array.isArray(entry) || !entry || entry.ts !== stamp || !Array.isArray(entry.titles)) {
+      changed = true;
+    }
+    stored[key] = { titles, ts: stamp };
+  }
+  if (Object.keys(raw).length !== Object.keys(stored).length) changed = true;
+  return { stored, changed };
+}
+
 async function saveViewedState(viewed, sessionViewed) {
   await storageLocalSet({ [STORAGE_KEY]: [...viewed] });
   saveTabSessionViewedSet(sessionViewed);
 }
 
-function addTitleToMap(titleMap, key, title) {
+function addTitleToSessionMap(titleMap, key, title) {
   const t = String(title || '').trim().replace(/\s+/g, ' ');
-  if (!key || !t) return false;
-  if (/^https?:\/\//i.test(t) || /^[a-z0-9.-]+\.[a-z]{2,}\//i.test(t)) return false;
+  if (!key || !isDisplayTitleText(t)) return false;
   const titles = Array.isArray(titleMap[key]) ? titleMap[key] : [];
   if (titles.includes(t)) return false;
   titleMap[key] = [...titles, t];
   return true;
 }
 
-async function rememberArticleTitles(site, articleId, elements, sessionViewed, hostname) {
+function addTitleToPersistentMap(titleMap, key, title) {
+  const t = String(title || '').trim().replace(/\s+/g, ' ');
+  if (!key || !isDisplayTitleText(t)) return false;
+  const titles = titlesFromStoredEntry(titleMap[key]);
+  if (titles.includes(t)) return false;
+  titleMap[key] = { titles: [...titles, t], ts: Date.now() };
+  return true;
+}
+
+async function rememberArticleTitles(site, articleId, elements, sessionViewed, hostname, touchTs = false) {
   const key = getViewedKey(hostname, articleId);
   const titles = [];
   for (const element of elements) {
@@ -265,7 +317,11 @@ async function rememberArticleTitles(site, articleId, elements, sessionViewed, h
   const titleMap = await getViewedArticleTitles();
   let localChanged = false;
   for (const title of titles) {
-    localChanged = addTitleToMap(titleMap, key, title) || localChanged;
+    localChanged = addTitleToPersistentMap(titleMap, key, title) || localChanged;
+  }
+  if (touchTs && titleMap[key]) {
+    titleMap[key] = { titles: titlesFromStoredEntry(titleMap[key]), ts: Date.now() };
+    localChanged = true;
   }
   if (localChanged) {
     await storageLocalSet({ [STORAGE_TITLES_KEY]: titleMap });
@@ -275,7 +331,7 @@ async function rememberArticleTitles(site, articleId, elements, sessionViewed, h
   const sessionTitleMap = getTabSessionTitleMap();
   let sessionChanged = false;
   for (const title of titles) {
-    sessionChanged = addTitleToMap(sessionTitleMap, key, title) || sessionChanged;
+    sessionChanged = addTitleToSessionMap(sessionTitleMap, key, title) || sessionChanged;
   }
   if (sessionChanged) {
     saveTabSessionTitleMap(sessionTitleMap);
@@ -298,7 +354,7 @@ async function markAsViewed(site, articleId, canonicalRoot, allRoots) {
   const titleRoots = Array.isArray(allRoots) && allRoots.length
     ? allRoots.filter(el => el instanceof Element && el.isConnected)
     : [canonicalRoot];
-  await rememberArticleTitles(site, articleId, titleRoots, sessionViewed, hostname);
+  await rememberArticleTitles(site, articleId, titleRoots, sessionViewed, hostname, true);
 }
 
 function siteIsActivePage(site) {

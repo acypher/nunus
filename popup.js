@@ -16,6 +16,7 @@ const SESSION_KEY = 'nunus_session_viewed';
 const SESSION_TITLES_KEY = 'nunus_session_viewed_titles';
 const LEGACY_SESSION_URL_KEY = 'nunus_session_viewed_urls';
 const STORAGE_BLOCK_TOPICS_KEY = 'nunus_block_topics';
+const TITLE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 
 function normalizeBlockTopicsList(arr) {
   if (!Array.isArray(arr)) return [];
@@ -61,14 +62,64 @@ function parseStoredKey(key) {
   return { hostname: key.slice(0, sep), articleKey: key.slice(sep + 1), legacyTitle: key.slice(sep + 1) };
 }
 
+function titlesFromStoredEntry(entry) {
+  const raw = Array.isArray(entry) ? entry : entry && Array.isArray(entry.titles) ? entry.titles : [];
+  return [...new Set(raw.map(t => String(t).trim()).filter(Boolean))];
+}
+
+function prunePersistentTitleStorage(raw) {
+  const now = Date.now();
+  const stored = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { stored, changed: !!raw };
+  }
+  let changed = false;
+  for (const [key, entry] of Object.entries(raw)) {
+    if (!key) {
+      changed = true;
+      continue;
+    }
+    const titles = titlesFromStoredEntry(entry).filter(t => t && !isUrlLikeDisplayText(t));
+    if (!titles.length) {
+      changed = true;
+      continue;
+    }
+    const ts = Array.isArray(entry) ? now : Number(entry && entry.ts);
+    const stamp = Number.isFinite(ts) && ts > 0 ? ts : now;
+    if (now - stamp >= TITLE_MAX_AGE_MS) {
+      changed = true;
+      continue;
+    }
+    if (Array.isArray(entry) || !entry || entry.ts !== stamp || !Array.isArray(entry.titles)) {
+      changed = true;
+    }
+    stored[key] = { titles, ts: stamp };
+  }
+  if (Object.keys(raw).length !== Object.keys(stored).length) changed = true;
+  return { stored, changed };
+}
+
 function normalizeTitleMap(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const out = {};
-  for (const [key, titles] of Object.entries(raw)) {
-    if (!Array.isArray(titles)) continue;
-    out[key] = [...new Set(titles.map(t => String(t).trim()).filter(Boolean))];
+  for (const [key, entry] of Object.entries(raw)) {
+    const titles = titlesFromStoredEntry(entry)
+      .map(t => String(t).trim())
+      .filter(t => t && !isUrlLikeDisplayText(t));
+    if (titles.length) out[key] = [...new Set(titles)];
   }
   return out;
+}
+
+async function loadPrunedPersistentTitles() {
+  const local = await ext.storage.local.get({ [STORAGE_TITLES_KEY]: {} });
+  const { stored, changed } = prunePersistentTitleStorage(local[STORAGE_TITLES_KEY]);
+  if (changed) {
+    try {
+      await ext.storage.local.set({ [STORAGE_TITLES_KEY]: stored });
+    } catch (_) {}
+  }
+  return normalizeTitleMap(stored);
 }
 
 /** True when text is a URL or normalized URL key — never show these in article lists. */
@@ -337,9 +388,9 @@ async function showViewedArticles(options = {}) {
 
   resultsEl.classList.add('expanded');
 
-  const local = await ext.storage.local.get({ [STORAGE_KEY]: [], [STORAGE_TITLES_KEY]: {} });
+  const local = await ext.storage.local.get({ [STORAGE_KEY]: [] });
   const rawKeys = Array.isArray(local[STORAGE_KEY]) ? local[STORAGE_KEY] : [];
-  const titleMap = normalizeTitleMap(local[STORAGE_TITLES_KEY]);
+  const titleMap = await loadPrunedPersistentTitles();
 
   // UI only: omit URL keys that still appear under Newly Viewed (this tab), so the
   // two popup lists never duplicate the same story for the user.
@@ -407,8 +458,7 @@ async function showNewlyViewedArticles(options = {}) {
 
   resultsEl.classList.add('expanded');
 
-  const local = await ext.storage.local.get({ [STORAGE_TITLES_KEY]: {} });
-  const persistentTitleMap = normalizeTitleMap(local[STORAGE_TITLES_KEY]);
+  const persistentTitleMap = await loadPrunedPersistentTitles();
   const sessionState = tabId != null
     ? await readTabSessionState(tabId)
     : { keys: [], titleMap: {} };

@@ -6,7 +6,7 @@ Nunus — *Read only the news that's new* — is a browser extension for Safari 
 
 ## Data stored locally
 
-- **Viewed article titles** — stored in your browser's extension storage so Nunus can gray out headlines on future visits.
+- **Viewed article titles** — stored in your browser's extension storage for up to 3 months so the popup can list headlines you have already seen. After that, titles are discarded; headlines can still gray out from the remembered article URLs.
 - **User preferences** — such as topic-blocking phrases.
 
 All data remains on your device in your browser's local extension storage. Nothing is sent to any server.

@@ -141,4 +141,4 @@ To ship a new publication, create or finish `sites/newsite.js`, register it in `
 
 ## Permissions
 
-See `manifest.json` for the full list (e.g. **storage**, **activeTab**, **scripting**, and site-specific **host permissions**). In short: remembered titles and popup features use **storage**; the extension only injects on the declared homepage URL patterns.
+See `manifest.json` for the full list (e.g. **storage**, **activeTab**, **scripting**, and site-specific **host permissions**). In short: remembered titles (kept for 3 months) and popup features use **storage**; the extension only injects on the declared homepage URL patterns.
