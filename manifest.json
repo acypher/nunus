@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "4.2.42",
+  "version": "4.2.43",
   "description": "Read only the news that's new. Gray out headlines you've already seen on the news sites you follow.",
   "browser_specific_settings": {
     "gecko": {
@@ -26,8 +26,8 @@
   "host_permissions": [
     "http://localhost:1337/*",
     "http://127.0.0.1:1337/*",
-    "https://nytimes.com/*",
-    "https://www.nytimes.com/*",
+    "*://nytimes.com/",
+    "*://www.nytimes.com/",
     "https://news.google.com/",
     "https://news.google.com/?*",
     "https://www.theguardian.com/",
@@ -65,10 +65,8 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.nytimes.com/",
-        "https://www.nytimes.com/?*",
-        "https://nytimes.com/",
-        "https://nytimes.com/?*"
+        "*://nytimes.com/",
+        "*://www.nytimes.com/"
       ],
       "js": [
         "ext-chrome-shim.js",
@@ -76,7 +74,11 @@
         "sites/nyt.js",
         "content.js"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "exclude_matches": [
+        "*://nytimes.com/*/*",
+        "*://www.nytimes.com/*/*"
+      ]
     },
     {
       "matches": [

@@ -362,7 +362,25 @@ function watchLocation(cb) {
   }
 }
 
+function hostIsNytimes() {
+  const h = window.location.hostname;
+  return h === 'nytimes.com' || h === 'www.nytimes.com' || h.endsWith('.nytimes.com');
+}
+
+/** NYT article documents — including SPA while the path is still `/`. Never gray these. */
+function nytimesLooksLikeArticlePage() {
+  if (!hostIsNytimes()) return false;
+  const path = window.location.pathname || '';
+  if (path !== '/' && path !== '' && path !== '/index.html') return true;
+  return !!(
+    document.querySelector('section[name="articleBody"]') ||
+    document.querySelector('[data-testid="article-body"]') ||
+    document.querySelector('article#story')
+  );
+}
+
 function applyViewedStyle(element) {
+  if (nytimesLooksLikeArticlePage()) return;
   element.style.opacity = VIEWED_STYLE.opacity;
   element.style.filter = VIEWED_STYLE.filter;
   element.style.transition = VIEWED_STYLE.transition;
@@ -429,6 +447,7 @@ function articleMatchesBlockTopics(site, articleRoot, articleId, blockTopics) {
 }
 
 function applyTopicBlockedStyle(element) {
+  if (nytimesLooksLikeArticlePage()) return;
   element.style.opacity = TOPIC_BLOCKED_STYLE.opacity;
   element.style.filter = TOPIC_BLOCKED_STYLE.filter;
   element.style.transition = TOPIC_BLOCKED_STYLE.transition;
@@ -447,6 +466,7 @@ function removeTopicBlockedStyle(element) {
 const alwaysGrayRootsTracked = new Set();
 
 function applyAlwaysGrayStyle(element) {
+  if (nytimesLooksLikeArticlePage()) return;
   applyViewedStyle(element);
   element.dataset.nunusAlwaysGray = 'true';
 }
@@ -895,7 +915,7 @@ async function run(site) {
 
   const checkVisibility = async () => {
     if (!isExtensionContextValid()) return;
-    if (!siteIsActivePage(site)) return;
+    if (!siteIsActivePage(site) || nytimesLooksLikeArticlePage()) return;
     const now = performance.now();
     for (const [id, elements] of articles) {
       if (!trackedIds.has(id)) continue;

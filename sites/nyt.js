@@ -603,9 +603,20 @@
     return byUrl;
   }
 
+  function pageHasStoryBody() {
+    return !!(
+      document.querySelector('section[name="articleBody"]') ||
+      document.querySelector('[data-testid="article-body"]') ||
+      document.querySelector('article#story')
+    );
+  }
+
   function isHomepage() {
     const path = window.location.pathname;
-    return path === '/' || path === '' || path === '/index.html';
+    if (path !== '/' && path !== '' && path !== '/index.html') return false;
+    // SPA click-through can paint the story before the path leaves /.
+    if (pageHasStoryBody()) return false;
+    return true;
   }
 
   window.NunusSites = window.NunusSites || {};
