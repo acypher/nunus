@@ -1,0 +1,18 @@
+---
+description: Do not treat chat history, transcripts, or skill examples as live state
+alwaysApply: true
+---
+
+# History is not state
+
+Prior chat, tool results, transcripts, and conversation summaries are leftovers, not the current world.
+
+- Recompute or re-read the live system: code on disk, running app, browser, APIs, store listings, local prefs.
+- Do not grep a transcript or paste an earlier scrape and present it as the current result.
+- If you cannot see the live surface, say so. Do not substitute a leftover string.
+
+## Apple account identity
+
+The Apple Developer Program account holder is whoever App Store Connect returns **now** from `GET /v1/users` with role `ACCOUNT_HOLDER`.
+
+Xcode’s signed-in Apple ID is a different live source. Do not collapse the two. Do not take either from a prior chat or a skill example.

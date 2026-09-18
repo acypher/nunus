@@ -17,7 +17,10 @@ Use the user’s **normal Google Chrome** (already signed in), control it with
 `osascript` / screenshots, and **read the page from screenshots** (not
 accessibility dumps as the primary method).
 
-Login account: `order@acypher.com`. Never type the password or 2FA codes;
+Chrome is already signed into App Store Connect as the team account holder.
+If the task is “which Apple Developer Program email,” query live
+`GET /v1/users` for role `ACCOUNT_HOLDER` — do not copy this skill, Xcode’s
+signed-in Apple ID, or a prior chat. Never type the password or 2FA codes;
 pause and let the user complete those in Chrome.
 
 ## App identity
