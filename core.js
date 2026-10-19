@@ -1,7 +1,8 @@
 /**
  * Nunus - Core shared logic for graying out viewed articles.
  * "Viewed" = headline (or site.getVisibilityTargets) has ≥20px visible in the
- * viewport (per axis, capped to element size) for at least 3 seconds continuously.
+ * viewport and any clipping containers (per axis, capped to element size) for at
+ * least 3 seconds continuously.
  *
  * "Session" for gray-out / newly-viewed is tab-local: window.sessionStorage
  * (survives reload in the same tab; new tab = fresh session).
@@ -138,16 +139,41 @@ function saveTabSessionTitleMap(titleMap) {
   } catch (_) {}
 }
 
-/** Title counts as visible only if the viewport overlap is at least TITLE_VISIBLE_MIN_PX on each axis (or the full element if smaller). */
+/** Require enough of the title inside both the viewport and its clipping ancestors. */
 function isRectIntersectingViewport(element) {
   const rect = element.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return false;
   const vh = window.innerHeight;
   const vw = window.innerWidth;
-  const left = Math.max(0, rect.left);
-  const top = Math.max(0, rect.top);
-  const right = Math.min(vw, rect.right);
-  const bottom = Math.min(vh, rect.bottom);
+  let left = Math.max(0, rect.left);
+  let top = Math.max(0, rect.top);
+  let right = Math.min(vw, rect.right);
+  let bottom = Math.min(vh, rect.bottom);
+  if (right <= left || bottom <= top) return false;
+  const parentOf = el => el.parentElement || el.getRootNode?.().host;
+  for (let ancestor = parentOf(element); ancestor; ancestor = parentOf(ancestor)) {
+    const style = getComputedStyle(ancestor);
+    // These display types have no clipping box of their own.
+    if (style.display === 'contents' || style.display === 'inline') continue;
+    const clipsX = /^(hidden|clip|scroll|auto)$/.test(style.overflowX);
+    const clipsY = /^(hidden|clip|scroll|auto)$/.test(style.overflowY);
+    if (!clipsX && !clipsY) continue;
+    const bounds = ancestor.getBoundingClientRect();
+    // Use the client area: borders and scrollbars do not reveal hidden content.
+    const scaleX = ancestor.offsetWidth ? bounds.width / ancestor.offsetWidth : 1;
+    const scaleY = ancestor.offsetHeight ? bounds.height / ancestor.offsetHeight : 1;
+    if (clipsX) {
+      const clipLeft = bounds.left + ancestor.clientLeft * scaleX;
+      left = Math.max(left, clipLeft);
+      right = Math.min(right, clipLeft + ancestor.clientWidth * scaleX);
+    }
+    if (clipsY) {
+      const clipTop = bounds.top + ancestor.clientTop * scaleY;
+      top = Math.max(top, clipTop);
+      bottom = Math.min(bottom, clipTop + ancestor.clientHeight * scaleY);
+    }
+    if (right <= left || bottom <= top) return false;
+  }
   const visW = right - left;
   const visH = bottom - top;
   if (visW <= 0 || visH <= 0) return false;
