@@ -6,6 +6,7 @@ const vm = require('node:vm');
 
 const context = vm.createContext({
   window: { innerWidth: 823, innerHeight: 501 },
+  document: {},
   getComputedStyle: element => element.computedStyle
 });
 vm.runInContext(readFileSync(join(__dirname, '..', 'core.js'), 'utf8'), context);
@@ -118,4 +119,42 @@ test('offscreen titles avoid expensive ancestor style reads', () => {
     get() { throw new Error('Offscreen ancestor should not be inspected'); }
   });
   assert.equal(isVisible(box(100, 600, 100, 30, { parent })), false);
+});
+
+test('NYT body overflow propagated to the viewport does not hide scrolled headlines', () => {
+  const html = box(0, -13594, 823, 14095);
+  const body = box(0, -13594, 823, 501, {
+    parent: html, overflowX: 'hidden', overflowY: 'auto'
+  });
+  context.document = { documentElement: html, body, scrollingElement: html };
+  try {
+    assert.equal(isVisible(box(344, 128, 283, 36, { parent: body })), true);
+    assert.equal(isVisible(box(344, 600, 283, 36, { parent: body })), false);
+  } finally {
+    context.document = {};
+  }
+});
+
+test('the document scrolling element clips at the viewport, not its scrolled box', () => {
+  const html = box(0, -1000, 823, 2000, { overflowY: 'auto' });
+  context.document = { documentElement: html, scrollingElement: html };
+  try {
+    assert.equal(isVisible(box(100, 120, 200, 30, { parent: html })), true);
+  } finally {
+    context.document = {};
+  }
+});
+
+test('BODY still clips when the root handles its own overflow', () => {
+  const html = box(0, 0, 823, 501, { overflowY: 'auto' });
+  const body = box(100, 100, 200, 100, {
+    parent: html, overflowY: 'hidden'
+  });
+  context.document = { documentElement: html, body, scrollingElement: html };
+  try {
+    assert.equal(isVisible(box(120, 220, 100, 30, { parent: body })), false);
+    assert.equal(isVisible(box(120, 120, 100, 30, { parent: body })), true);
+  } finally {
+    context.document = {};
+  }
 });

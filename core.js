@@ -7,9 +7,9 @@
  * "Session" for gray-out / newly-viewed is tab-local: window.sessionStorage
  * (survives reload in the same tab; new tab = fresh session).
  *
- * Same article URL on the page more than once: after you read it this session,
- * only the canonical occurrence stays ungrayed; extra placements are grayed as
- * duplicates. Titles are display metadata and may change for the same URL.
+ * Same article URL on the page more than once: only the canonical occurrence
+ * stays ungrayed; extra placements gray immediately, even before viewing dwell.
+ * Titles are display metadata and may change for the same URL.
  */
 
 /** WebExtension namespace: prefer `browser` when present, else `chrome`. */
@@ -152,6 +152,15 @@ function isRectIntersectingViewport(element) {
   if (right <= left || bottom <= top) return false;
   const parentOf = el => el.parentElement || el.getRootNode?.().host;
   for (let ancestor = parentOf(element); ancestor; ancestor = parentOf(ancestor)) {
+    // Viewport overflow is already covered by the viewport intersection above.
+    // The root's box scrolls with the document; using it as a clipping box can
+    // incorrectly hide every headline below the first screen. HTML also
+    // propagates BODY overflow to the viewport when the root overflow is visible.
+    if (ancestor === document.documentElement || ancestor === document.scrollingElement) continue;
+    if (ancestor === document.body) {
+      const rootStyle = getComputedStyle(document.documentElement);
+      if (rootStyle.overflowX === 'visible' && rootStyle.overflowY === 'visible') continue;
+    }
     const style = getComputedStyle(ancestor);
     // These display types have no clipping box of their own.
     if (style.display === 'contents' || style.display === 'inline') continue;
@@ -592,7 +601,7 @@ function syncGrayForElements(
   const inStorage = isArticleViewed(viewedArticles, hostname, id);
   const inSession = sessionViewed.has(key);
   let canonicalLive = storedCanonical?.isConnected ? storedCanonical : null;
-  if (inSession && !canonicalLive && elements.length) {
+  if (!canonicalLive && elements.length) {
     const arr = [...elements].filter(el => el.isConnected);
     sortRootsByDocumentOrder(arr);
     canonicalLive = arr[0] || null;
@@ -617,7 +626,7 @@ function syncGrayForElements(
 
     let gray = false;
     if (!inStorage) {
-      gray = false;
+      gray = !!canonicalLive && element !== canonicalLive;
     } else if (!inSession) {
       gray = true;
     } else if (canonicalLive && element !== canonicalLive) {

@@ -438,7 +438,7 @@
       const title = getTitleFromRoot(root);
       const id = getArticleUrl(root);
       if (pageId && id && canonicalArticleId(id) === pageId) continue;
-      if (title && id) add(id, root);
+      if (title && id) add(canonicalArticleId(id) || id, root);
     }
 
     for (const [id, set] of articles) {
