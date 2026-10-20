@@ -458,6 +458,18 @@ function hostIsNytimes() {
   return h === 'nytimes.com' || h === 'www.nytimes.com' || h.endsWith('.nytimes.com');
 }
 
+function opinionNeedsSummary(site, articleId, elements) {
+  if (!hostIsNytimes() || !String(articleId).includes('/opinion/') ||
+      !document.getElementById('nyt-opinion-summary-style') ||
+      !site.isOpinionSummaryPackageArticle?.(elements)) return false;
+  const key = normalizeArticleUrlKey(articleId);
+  if (!key) return false;
+  return ![...document.querySelectorAll('.nyt-opinion-summary')].some(el =>
+    el.dataset.opinionSummaryPending !== '1' &&
+    String(el.textContent || '').trim().length >= 40 &&
+    normalizeArticleUrlKey(el.dataset.opinionSummaryUrl) === key);
+}
+
 /** NYT article documents — including SPA while the path is still `/`. Never gray these. */
 function nytimesLooksLikeArticlePage() {
   if (!hostIsNytimes()) return false;
@@ -472,10 +484,10 @@ function nytimesLooksLikeArticlePage() {
 
 function applyViewedStyle(element) {
   if (nytimesLooksLikeArticlePage()) return;
-  element.style.opacity = VIEWED_STYLE.opacity;
-  element.style.filter = VIEWED_STYLE.filter;
-  element.style.transition = VIEWED_STYLE.transition;
-  element.dataset.nunusViewed = 'true';
+  if (element.style.opacity !== VIEWED_STYLE.opacity) element.style.opacity = VIEWED_STYLE.opacity;
+  if (element.style.filter !== VIEWED_STYLE.filter) element.style.filter = VIEWED_STYLE.filter;
+  if (element.style.transition !== VIEWED_STYLE.transition) element.style.transition = VIEWED_STYLE.transition;
+  if (element.dataset.nunusViewed !== 'true') element.dataset.nunusViewed = 'true';
 }
 
 function removeViewedStyle(element) {
@@ -539,10 +551,10 @@ function articleMatchesBlockTopics(site, articleRoot, articleId, blockTopics) {
 
 function applyTopicBlockedStyle(element) {
   if (nytimesLooksLikeArticlePage()) return;
-  element.style.opacity = TOPIC_BLOCKED_STYLE.opacity;
-  element.style.filter = TOPIC_BLOCKED_STYLE.filter;
-  element.style.transition = TOPIC_BLOCKED_STYLE.transition;
-  element.dataset.nunusTopicBlocked = 'true';
+  if (element.style.opacity !== TOPIC_BLOCKED_STYLE.opacity) element.style.opacity = TOPIC_BLOCKED_STYLE.opacity;
+  if (element.style.filter !== TOPIC_BLOCKED_STYLE.filter) element.style.filter = TOPIC_BLOCKED_STYLE.filter;
+  if (element.style.transition !== TOPIC_BLOCKED_STYLE.transition) element.style.transition = TOPIC_BLOCKED_STYLE.transition;
+  if (element.dataset.nunusTopicBlocked !== 'true') element.dataset.nunusTopicBlocked = 'true';
 }
 
 function removeTopicBlockedStyle(element) {
@@ -559,7 +571,9 @@ const alwaysGrayRootsTracked = new Set();
 function applyAlwaysGrayStyle(element) {
   if (nytimesLooksLikeArticlePage()) return;
   applyViewedStyle(element);
-  element.dataset.nunusAlwaysGray = 'true';
+  if (element.dataset.nunusAlwaysGray !== 'true') {
+    element.dataset.nunusAlwaysGray = 'true';
+  }
 }
 
 function removeAlwaysGrayStyle(element) {
@@ -611,6 +625,7 @@ function syncGrayForElements(
 
   const topicRoot = pickArticleRootForTopics(elements);
   const topicTitle = getArticleDisplayTitle(site, topicRoot, id);
+  const needsSummary = opinionNeedsSummary(site, id, elements);
   for (const element of elements) {
     if (isCurrentPageArticle(id)) {
       removeViewedStyle(element);
@@ -628,9 +643,12 @@ function syncGrayForElements(
     if (!inStorage) {
       gray = !!canonicalLive && element !== canonicalLive;
     } else if (!inSession) {
+      // A prior visit takes precedence over a missing Opinion summary.
       gray = true;
     } else if (canonicalLive && element !== canonicalLive) {
       gray = true;
+    } else if (needsSummary) {
+      gray = false;
     } else {
       gray = false;
     }
@@ -1010,6 +1028,11 @@ async function run(site) {
     const now = performance.now();
     for (const [id, elements] of articles) {
       if (!trackedIds.has(id)) continue;
+      // A card in the Opinion summary package stays new until its summary is finished.
+      if (opinionNeedsSummary(site, id, [...elements])) {
+        dwellStartById.delete(id);
+        continue;
+      }
       const topicRoot = pickArticleRootForTopics([...elements]);
       const topicTitle = getArticleDisplayTitle(site, topicRoot, id);
       if (articleMatchesBlockTopics(site, topicRoot, topicTitle, blockTopics)) continue;
@@ -1064,17 +1087,46 @@ async function run(site) {
   };
   checkVisibilityLoop();
 
+  // Coalesce bursts of DOM changes, including Opinion Summaries updates, into
+  // one rescan at a time. An idle callback without a timeout can starve on a
+  // busy homepage, leaving newly inserted articles untracked for too long.
+  let mergeQueued = false;
+  let mergeRunning = false;
+  let mergeAgain = false;
+  const scheduleMerge = () => {
+    if (mergeRunning) {
+      mergeAgain = true;
+      return;
+    }
+    if (mergeQueued) return;
+    mergeQueued = true;
+    const invoke = async () => {
+      mergeQueued = false;
+      mergeRunning = true;
+      try {
+        await mergeNewArticles();
+      } finally {
+        mergeRunning = false;
+        if (mergeAgain) {
+          mergeAgain = false;
+          scheduleMerge();
+        }
+      }
+    };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(invoke, { timeout: 250 });
+    } else {
+      setTimeout(invoke, 0);
+    }
+  };
+
   // MutationObserver handles dynamic content
   const observer = new MutationObserver(() => {
     if (!siteIsActivePage(site)) {
       stripNunusVisuals(articles);
       return;
     }
-    if (typeof requestIdleCallback === 'function') {
-      requestIdleCallback(mergeNewArticles);
-    } else {
-      mergeNewArticles();
-    }
+    scheduleMerge();
   });
   observer.observe(document.body, { childList: true, subtree: true });
 

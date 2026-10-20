@@ -339,7 +339,6 @@
       if (wrap) candidates.add(wrap);
     }
     for (const el of queryAll(document, 'section.story-wrapper')) {
-      if (el.querySelector('div.story-wrapper')) continue;
       if (!rootHasArticleAnchor(el)) continue;
       candidates.add(el);
     }
@@ -379,19 +378,26 @@
       }
     }
 
-    // When the main card link is section > a > … > div.story-wrapper[data-tpl="sli"],
-    // the anchor pass adds the section and the sli pass adds the inner roots.
-    // A global outermost filter would keep only the section; a single section wrapping
-    // multiple columns would then collapse to one article. Prefer inner sli cards whenever
-    // present (heroes without sli still use section-only roots).
+    // A section can wrap one sli while its image sits outside that sli. Style the
+    // whole section for those single-story cards so the image grays with the title.
+    // Keep inner roots when a section contains multiple stories.
     for (const el of [...candidates]) {
-      if (
-        el.tagName === 'SECTION' &&
-        el.classList.contains('story-wrapper') &&
-        el.querySelector('div.story-wrapper[data-tpl="sli"]')
-      ) {
-        candidates.delete(el);
-      }
+      if (el.tagName !== 'SECTION' || !el.classList.contains('story-wrapper')) continue;
+      const innerRoots = [...el.querySelectorAll('div.story-wrapper[data-tpl="sli"]')];
+      if (!innerRoots.length) continue;
+      const articleIds = new Set(
+        [...el.querySelectorAll('a[href]')]
+          .filter(anchorLooksLikeArticle)
+          .map(a => canonicalArticleId(a.href))
+          .filter(Boolean)
+      );
+      const singleStoryWithOutsideImage =
+        innerRoots.length === 1 &&
+        [...el.querySelectorAll('img')].some(img => !innerRoots[0].contains(img)) &&
+        articleIds.size === 1 &&
+        articleIds.has(canonicalArticleId(getArticleUrl(innerRoots[0])));
+      if (singleStoryWithOutsideImage) candidates.delete(innerRoots[0]);
+      else candidates.delete(el);
     }
 
     return [...candidates];
@@ -448,6 +454,29 @@
     return articles;
   }
 
+  /** Only the homepage package headed by the large Opinion title gets summaries. */
+  function isOpinionSummaryPackageArticle(elements) {
+    const roots = [...elements].filter(el => el.isConnected);
+    if (!roots.length || roots.every(el => el.closest('[data-testid="well-section"]'))) {
+      return false;
+    }
+    const main = document.getElementById('site-content');
+    if (!main) return false;
+    const heading = [...main.querySelectorAll('.package-title-wrapper .O8nPlG_packageTitle')]
+      .find(el => el.querySelector('p[data-tpl="h"]')?.textContent?.trim() === 'Opinion');
+    if (!heading) return false;
+
+    let scope = heading.closest('.package-title-wrapper')?.parentElement;
+    while (scope && scope !== main) {
+      if (scope.querySelector('div.story-wrapper[data-tpl="sli"], section.story-wrapper')) {
+        return roots.some(el => scope.contains(el));
+      }
+      if (scope.matches('[data-hierarchy="zone"], [data-hierarchy="feed"]')) return false;
+      scope = scope.parentElement;
+    }
+    return false;
+  }
+
   function canonicalArticleId(href) {
     const u = resolveArticleUrl(href);
     if (!u || !isNytimesHost(u.hostname)) return null;
@@ -458,6 +487,42 @@
     // Hub landing pages, not stories.
     if (path === '/wirecutter' || path === '/athletic') return null;
     return `${u.protocol}//${u.host}${path}`;
+  }
+
+  /** Standalone figures in a grid follow the gray state of every sibling story. */
+  function findAlwaysGrayRoots() {
+    const grayFigures = [];
+    for (const figure of queryAll(document, 'figure')) {
+      // Images inside a story wrapper already inherit that story's gray style.
+      if (figure.closest('.story-wrapper')) continue;
+      const imageCell = figure.closest('[class*="_gridCell"]');
+      const grid = imageCell?.parentElement;
+      if (!grid?.matches('[class*="_gridContainer"]')) continue;
+
+      const siblingStories = [...grid.children]
+        .filter(cell => cell !== imageCell && cell.matches('[class*="_gridCell"]'))
+        .flatMap(cell => [...cell.querySelectorAll('div.story-wrapper, section.story-wrapper')])
+        .filter(root =>
+          !root.querySelector('.story-wrapper') &&
+          getTitleFromRoot(root) &&
+          getArticleUrl(root)
+        );
+      if (!siblingStories.length) continue;
+      const isGray = root => {
+        const cell = root.closest('[class*="_gridCell"]');
+        for (let el = root; el; el = el.parentElement) {
+          if (
+            el.dataset.nunusViewed === 'true' ||
+            el.dataset.nunusTopicBlocked === 'true' ||
+            el.dataset.nunusAlwaysGray === 'true'
+          ) return true;
+          if (el === cell) break;
+        }
+        return false;
+      };
+      if (siblingStories.every(isGray)) grayFigures.push(figure);
+    }
+    return grayFigures;
   }
 
   /**
@@ -629,6 +694,8 @@
     getBlockTopicHaystack,
     getArticleUrl,
     getArticleTitle: getTitleFromRoot,
-    canonicalArticleId
+    canonicalArticleId,
+    findAlwaysGrayRoots,
+    isOpinionSummaryPackageArticle
   };
 })();
