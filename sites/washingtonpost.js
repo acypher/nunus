@@ -1,103 +1,75 @@
-/**
- * Washington Post site handler
- */
+/** Washington Post homepage headline tracking. */
 (function() {
-  const linkSelector = 'a[href*="washingtonpost.com/"]';
-  const urlPattern = /\/\d{4}\/\d{1,2}\/\d{1,2}(\/|$)|_[a-zA-Z0-9]+_story\.|_story\.html/;
-  const containerSelectors = 'article, [data-pb-layout], [data-article-id], section, div[class*="story"], div[class*="card"]';
+  const headlineSelector = 'a[data-pb-local-content-field="web_headline"], h1 a[href], h2 a[href], h3 a[href]';
+  const urlPattern = /\/\d{4}\/\d{1,2}\/\d{1,2}(\/|$)|_story\.html$/;
+  const cardSelector = '[data-feature-id="homepage/story"], article, [data-article-id], .card';
 
-  const selectors = [
-    'article',
-    '[data-pb-layout]',
-    '[data-article-id]',
-    'a[href*="washingtonpost.com/"][href*="/20"]',
-    'a[href*="washingtonpost.com/"][href*="_story"]',
-    'a[href*="washingtonpost.com/"][href*="_story.html"]'
-  ];
-
-  function normalizeTitle(text) {
-    let t = text.split('\n')[0].trim().replace(/\s+/g, ' ');
-    t = t.replace(/\s+By\s+[A-Za-z].*$/i, '').trim();
-    t = t.replace(/\s+[-|]\s+.*$/, '').trim();
-    return t || null;
+  function articleUrl(link) {
+    try {
+      const url = new URL(link.href, window.location.href);
+      if (!/^https?:$/.test(url.protocol) ||
+          !/^(www\.)?washingtonpost\.com$/.test(url.hostname) ||
+          !urlPattern.test(url.pathname)) return null;
+      url.search = '';
+      url.hash = '';
+      return url.href;
+    } catch (_) {
+      return null;
+    }
   }
 
-  function getArticleId(element) {
-    const link = element.querySelector(linkSelector) || element.closest(linkSelector) || (element.tagName === 'A' ? element : null);
-    if (!link || !link.href) return null;
-    const url = new URL(link.href);
-    if (!urlPattern.test(url.pathname)) return null;
-    return normalizeTitle(link.textContent);
+  function headlineLinks(root) {
+    const links = new Set();
+    if (root.matches?.('a[href]')) links.add(root);
+    for (const link of root.querySelectorAll(headlineSelector)) links.add(link);
+    // Some layouts wrap the heading in a link rather than putting a link inside it.
+    for (const heading of root.querySelectorAll('h1, h2, h3')) {
+      const link = heading.closest('a[href]');
+      if (link) links.add(link);
+    }
+    return [...links].filter(link => articleUrl(link) && link.textContent.trim());
+  }
+
+  function headlineLink(root) {
+    return root ? headlineLinks(root)[0] || null : null;
+  }
+
+  function getArticleTitle(root) {
+    const link = headlineLink(root);
+    return link?.textContent.trim().replace(/\s+/g, ' ') || null;
   }
 
   function getArticleUrl(root) {
-    const link = root?.querySelector(linkSelector) || root?.closest(linkSelector) || (root?.tagName === 'A' ? root : null);
-    if (!link || !link.href) return null;
-    const url = new URL(link.href);
-    if (!urlPattern.test(url.pathname)) return null;
-    return link.href;
+    const link = headlineLink(root);
+    return link ? articleUrl(link) : null;
   }
 
   function findArticles() {
     const articles = new Map();
-    const add = (id, el) => {
-      if (!id || !el) return;
+    for (const link of headlineLinks(document)) {
+      const id = articleUrl(link);
+      const card = link.closest(cardSelector);
+      // A section-wide card must never stand in for several separate headlines.
+      const root = card && new Set(headlineLinks(card).map(articleUrl)).size === 1
+        ? card : link;
       if (!articles.has(id)) articles.set(id, new Set());
-      articles.get(id).add(el);
-    };
-
-    for (const selector of selectors) {
-      for (const el of document.querySelectorAll(selector)) {
-        const articleEl = el.tagName === 'A' ? el.closest(containerSelectors) || el : el;
-        if (!articleEl) continue;
-        const title = getArticleId(articleEl);
-        const id = getArticleUrl(articleEl);
-        if (!title) continue;
-        add(id, articleEl);
-      }
+      articles.get(id).add(root);
     }
-
-    for (const link of document.querySelectorAll(linkSelector)) {
-      const title = getArticleId(link);
-      const id = getArticleUrl(link);
-      if (title && id) {
-        const articleEl = link.closest('article') || link.closest('[data-pb-layout]') || link.closest('[data-article-id]') || link.closest(containerSelectors) || link.parentElement?.closest('div') || link.parentElement || link;
-        add(id, articleEl);
-      }
-    }
-
     return articles;
   }
 
   function isHomepage() {
-    const path = window.location.pathname;
-    return path === '/' || path === '' || path === '/index.html';
+    return ['/', '', '/index.html'].includes(window.location.pathname);
   }
 
   function getVisibilityTargets(root) {
-    const link =
-      root.querySelector(linkSelector) || root.closest(linkSelector);
-    if (link) return [link];
-    return [root];
+    const link = headlineLink(root);
+    return link ? [link] : [];
   }
 
-  /** Deck / subhead when the layout exposes it on cards. */
   function getBlockTopicHaystack(root) {
-    if (!root) return '';
-    const sels = [
-      '[data-testid="article-lede"]',
-      '.font--subhead',
-      'p.font--subhead',
-      '.pb-md',
-      '[data-pb-type="description"]'
-    ];
-    for (const sel of sels) {
-      const el = root.querySelector(sel);
-      if (!el) continue;
-      const t = normalizeTitle(el.textContent);
-      if (t) return t;
-    }
-    return '';
+    return root?.querySelector('[data-testid="article-lede"], .font--subhead, [data-pb-type="description"], .description')
+      ?.textContent.trim().replace(/\s+/g, ' ') || '';
   }
 
   window.NunusSites = window.NunusSites || {};
@@ -107,6 +79,6 @@
     getVisibilityTargets,
     getBlockTopicHaystack,
     getArticleUrl,
-    getArticleTitle: getArticleId
+    getArticleTitle
   };
 })();

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Nunus",
-  "version": "4.3.9",
+  "version": "5.0.0",
   "description": "Read only the news that's new. Gray out headlines you've already seen on the news sites you follow.",
   "browser_specific_settings": {
     "gecko": {
@@ -49,7 +49,15 @@
     "https://www.theepochtimes.com/",
     "https://www.theepochtimes.com/?*",
     "https://theepochtimes.com/",
-    "https://theepochtimes.com/?*"
+    "https://theepochtimes.com/?*",
+    "https://www.washingtonpost.com/",
+    "https://www.washingtonpost.com/?*",
+    "https://www.washingtonpost.com/index.html",
+    "https://www.washingtonpost.com/index.html?*",
+    "https://washingtonpost.com/",
+    "https://washingtonpost.com/?*",
+    "https://washingtonpost.com/index.html",
+    "https://washingtonpost.com/index.html?*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -142,6 +150,25 @@
         "ext-chrome-shim.js",
         "core.js",
         "sites/epochtimes.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.washingtonpost.com/",
+        "https://www.washingtonpost.com/?*",
+        "https://www.washingtonpost.com/index.html",
+        "https://www.washingtonpost.com/index.html?*",
+        "https://washingtonpost.com/",
+        "https://washingtonpost.com/?*",
+        "https://washingtonpost.com/index.html",
+        "https://washingtonpost.com/index.html?*"
+      ],
+      "js": [
+        "ext-chrome-shim.js",
+        "core.js",
+        "sites/washingtonpost.js",
         "content.js"
       ],
       "run_at": "document_idle"
