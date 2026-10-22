@@ -2,14 +2,18 @@
 (function() {
   const headlineSelector = 'a[data-pb-local-content-field="web_headline"], h1 a[href], h2 a[href], h3 a[href]';
   const urlPattern = /\/\d{4}\/\d{1,2}\/\d{1,2}(\/|$)|_story\.html$/;
+  const undatedContentPattern = /^\/(?:podcasts\/[^/]+\/[^/]+|recipes\/(?!search(?:\/|$))[^/]+)\/?$/;
   const cardSelector = '[data-feature-id="homepage/story"], article, [data-article-id], .card';
 
   function articleUrl(link) {
     try {
       const url = new URL(link.href, window.location.href);
+      const isMainSite = /^(www\.)?washingtonpost\.com$/.test(url.hostname);
+      const isIntelligence = url.hostname === 'wpintelligence.washingtonpost.com';
       if (!/^https?:$/.test(url.protocol) ||
-          !/^(www\.)?washingtonpost\.com$/.test(url.hostname) ||
-          !urlPattern.test(url.pathname)) return null;
+          !(isMainSite || isIntelligence) ||
+          !(urlPattern.test(url.pathname) ||
+            (isMainSite && undatedContentPattern.test(url.pathname)))) return null;
       url.search = '';
       url.hash = '';
       return url.href;

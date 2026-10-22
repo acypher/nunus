@@ -48,3 +48,57 @@ test('entry point starts Washington Post tracking only on a homepage', () => {
     assert.equal(started, ['/', '/index.html'].includes(path) ? 1 : 0, path);
   }
 });
+
+function headlineHarness(hrefs) {
+  const links = hrefs.map((href, index) => ({
+    href, textContent: `Headline ${index + 1}`,
+    matches: selector => selector === 'a[href]',
+    querySelectorAll: () => [],
+    closest: () => null
+  }));
+  const document = { querySelectorAll: selector => selector.startsWith('a[') ? links : [] };
+  const window = { location: new URL('https://www.washingtonpost.com/') };
+  vm.runInContext(handler, vm.createContext({ window, document, URL }));
+  return { site: window.NunusSites.washingtonpost, links };
+}
+
+test('finds Intelligence stories, podcast episodes and recipes alongside ordinary articles', () => {
+  // URL formats inspected on the live Washington Post homepage.
+  const urls = [
+    'https://wpintelligence.washingtonpost.com/topics/ai-tech/2026/10/19/wpi-conversation-how-prepare-workforce-age-ai/',
+    'https://wpintelligence.washingtonpost.com/topics/general/events/2026/10/23/next-big-bet-nuclear-power-smrs/',
+    'https://www.washingtonpost.com/podcasts/dollars-and-sense/the-chapter-inbetween/',
+    'https://www.washingtonpost.com/podcasts/life-hax/i-think-my-daughters-best-friend-is-why-shes-still-single/',
+    'https://www.washingtonpost.com/recipes/chile-shrimp-brussels-sprouts-and-lemon-aioli/',
+    'https://www.washingtonpost.com/recipes/chocolate-cream-pie/',
+    'https://www.washingtonpost.com/politics/2026/10/21/a-story/',
+    'https://www.washingtonpost.com/local/old-article_story.html'
+  ];
+  const { site, links } = headlineHarness(urls.map(url => url + '?itid=hp_promo#headline'));
+  const articles = site.findArticles();
+  assert.deepEqual([...articles.keys()], urls);
+  links.forEach((link, index) => {
+    assert.equal(site.getArticleUrl(link), urls[index]);
+    assert.equal(site.getArticleTitle(link), `Headline ${index + 1}`);
+    assert.deepEqual([...site.getVisibilityTargets(link)], [link]);
+    assert.ok(articles.get(urls[index]).has(link));
+  });
+});
+
+test('ignores section, podcast-show, search and unrelated-host links', () => {
+  const rejected = [
+    'https://www.washingtonpost.com/podcasts/',
+    'https://www.washingtonpost.com/podcasts/life-hax/',
+    'https://www.washingtonpost.com/recipes/',
+    'https://www.washingtonpost.com/recipes/search/?query=pie',
+    'https://wpintelligence.washingtonpost.com/topics/ai-tech/',
+    'https://www.washingtonpost.com/politics/',
+    'https://other.washingtonpost.com/news/2026/10/21/story/',
+    'https://washingtonpost.com.example.com/recipes/chocolate-cream-pie/',
+    'https://example.com/2026/10/21/story/',
+    'ftp://www.washingtonpost.com/recipes/chocolate-cream-pie/'
+  ];
+  const { site, links } = headlineHarness(rejected);
+  assert.equal(site.findArticles().size, 0);
+  links.forEach(link => assert.equal(site.getArticleUrl(link), null));
+});
