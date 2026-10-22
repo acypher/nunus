@@ -35,23 +35,6 @@ Install **Nunus** from the official extension listings (normal â€œadd extensionâ
 
 **Safari (your own Xcode build):** After you create the Safari Web Extension target, hook in [`safari/scripts/copy-web-extension-resources.sh`](safari/scripts/copy-web-extension-resources.sh) as described in [`safari/README.md`](safari/README.md) so the `.appex` loads the same files as the repo root.
 
-## Reload validation
-
-Articles discovered during a page visit stay readable until the page is reloaded.
-Reloading starts a fresh Newly Viewed list for that tab; saved articles move to
-Viewed Articles and every occurrence grays out, including lazy-loaded cards.
-
-Run the reusable regression test with `node --test test/reload.test.js`, or all
-tests with `node --test test/*.test.js`. The reload test runs the real core startup,
-three-second discovery timer, and mutation rescans in fresh page contexts sharing
-the same persistent and tab storage. It checks all six supported sites, duplicate
-cards, new articles, saved titles, and the NYT Opinion summary gate.
-
-For an installed-browser check, discover a headline by keeping it visible for
-three seconds, then reload the page in the same tab. Confirm that headline is
-grayed out and listed under Viewed Articles; a new headline should stay readable
-and enter Newly Viewed after its own three-second dwell.
-
 ## Versioning
 
 Uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
