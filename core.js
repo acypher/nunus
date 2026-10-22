@@ -4,8 +4,9 @@
  * viewport and any clipping containers (per axis, capped to element size) for at
  * least 3 seconds continuously.
  *
- * "Session" for gray-out / newly-viewed is tab-local: window.sessionStorage
- * (survives reload in the same tab; new tab = fresh session).
+ * "Session" for gray-out / newly-viewed is one page load in this tab.
+ * window.sessionStorage exposes it to the popup, but startup resets it so
+ * articles discovered on a previous load gray immediately after reload.
  *
  * Same article URL on the page more than once: only the canonical occurrence
  * stays ungrayed; extra placements gray immediately, even before viewing dwell.
@@ -919,6 +920,12 @@ function registerSkipGrayScroll(site, mergeNewArticles) {
 async function run(site) {
   if (!isExtensionContextValid()) return;
 
+  // sessionStorage survives reloads (and can be copied into a new tab). Its
+  // old keys must not exempt previously discovered stories from graying.
+  saveTabSessionViewedSet(new Set());
+  saveTabSessionTitleMap({});
+  sessionCanonicalRootByKey.clear();
+
   const hostname = window.location.hostname;
   const viewedArticles = await getViewed();
   const sessionViewed = getTabSessionViewedSet();
@@ -995,7 +1002,7 @@ async function run(site) {
   });
 
   if (onHomepage) {
-    // Sync gray from persistent storage vs this tab's session; strip when session has the key.
+    // Previous loads gray immediately; discoveries on this load stay readable.
     for (const [id, elements] of articles) {
       if (isArticleViewed(viewedArticles, hostname, id)) {
         await rememberArticleTitles(site, id, [...elements], sessionViewed, hostname);
