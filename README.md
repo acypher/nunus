@@ -35,6 +35,24 @@ Install **Nunus** from the official extension listings (normal â€œadd extensionâ
 
 **Safari (your own Xcode build):** After you create the Safari Web Extension target, hook in [`safari/scripts/copy-web-extension-resources.sh`](safari/scripts/copy-web-extension-resources.sh) as described in [`safari/README.md`](safari/README.md) so the `.appex` loads the same files as the repo root.
 
+## Washington Post reload validation
+
+On Washington Post, a newly discovered headline stays readable for the current
+page visit. Reloading grays saved stories, including stories still listed under
+Newly Viewed for that tab. The tab's keys and title history are preserved. Other
+publications retain their existing behavior.
+
+Run `node --test test/washingtonpost-reload.test.js` for the reusable regression
+test, or `node --test test/*.test.js` for all tests. The regression runs the actual
+Washington Post handler and core startup/dwell/rescan logic in fresh page contexts
+sharing persistent and tab storage. It covers six stories observed ungrayed on
+the live page, duplicate and lazy-loaded cards, replaced cards, title history,
+and unchanged graying policies for the other publications.
+
+For a live check, keep a new Washington Post headline visible for three seconds,
+confirm it enters Newly Viewed and stays readable, then reload the same tab.
+The headline should gray immediately and its Newly Viewed entry should remain.
+
 ## Versioning
 
 Uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH):

@@ -78,6 +78,8 @@
 
   window.NunusSites = window.NunusSites || {};
   window.NunusSites.washingtonpost = {
+    // Keep the tab's Newly Viewed history, but gray saved stories on reload.
+    keepNewlyViewedReadableAfterReload: false,
     findArticles,
     isHomepage,
     getVisibilityTargets,

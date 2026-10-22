@@ -6,6 +6,8 @@
  *
  * "Session" for gray-out / newly-viewed is tab-local: window.sessionStorage
  * (survives reload in the same tab; new tab = fresh session).
+ * A site can limit the readable exemption to this document while keeping the
+ * tab's Newly Viewed history intact.
  *
  * Same article URL on the page more than once: only the canonical occurrence
  * stays ungrayed; extra placements gray immediately, even before viewing dwell.
@@ -89,6 +91,8 @@ const TITLE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 
 /** storage key -> root kept ungrayed this session when the same story appears twice */
 const sessionCanonicalRootByKey = new Map();
+/** Discoveries made by this document, retained when a site replaces a card. */
+const pageViewedKeys = new Set();
 
 const VIEWED_STYLE = {
   opacity: '0.2',
@@ -383,6 +387,7 @@ async function markAsViewed(site, articleId, canonicalRoot, allRoots) {
   sessionViewed.add(key);
   await saveViewedState(viewed, sessionViewed);
 
+  pageViewedKeys.add(key);
   if (canonicalRoot instanceof Element) {
     sessionCanonicalRootByKey.set(key, canonicalRoot);
   }
@@ -613,7 +618,10 @@ function syncGrayForElements(
     storedCanonical = undefined;
   }
   const inStorage = isArticleViewed(viewedArticles, hostname, id);
-  const inSession = sessionViewed.has(key);
+  // The popup's tab history survives reload. Sites can keep that history while
+  // limiting the readable occurrence to discoveries made on the current page.
+  const keepReadable = sessionViewed.has(key) &&
+    (site.keepNewlyViewedReadableAfterReload !== false || pageViewedKeys.has(key));
   let canonicalLive = storedCanonical?.isConnected ? storedCanonical : null;
   if (!canonicalLive && elements.length) {
     const arr = [...elements].filter(el => el.isConnected);
@@ -642,7 +650,7 @@ function syncGrayForElements(
     let gray = false;
     if (!inStorage) {
       gray = !!canonicalLive && element !== canonicalLive;
-    } else if (!inSession) {
+    } else if (!keepReadable) {
       // A prior visit takes precedence over a missing Opinion summary.
       gray = true;
     } else if (canonicalLive && element !== canonicalLive) {
