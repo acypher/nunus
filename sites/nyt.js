@@ -3,7 +3,8 @@
  * Selectors derived from samples in samples/nytimes/ (homepage DOM captures).
  *
  * Article root: Vi homepage “story list item” wrappers (data-tpl="sli"),
- * section.story-wrapper heroes, Live band rows (#hp-live-band-list), and bottom rails:
+ * section.story-wrapper heroes, article.story-wrapper podcast cards,
+ * Live band rows (#hp-live-band-list), and bottom rails:
  * [data-testid$="-section"] article.
  * Title: headline slot [data-tpl="h"], label link [data-tpl="l"], or .indicate-hover.
  * URL: canonical identity from in-root / wrapping <a>, or desktop lockup overlay
@@ -329,13 +330,14 @@
     for (const el of queryAll(document, 'div.story-wrapper[data-tpl="sli"]')) {
       if (rootHasArticleAnchor(el)) candidates.add(el);
     }
-    for (const el of queryAll(document, 'div.story-wrapper')) {
+    // Personalized podcast rails use article.story-wrapper without assetWrapper.
+    for (const el of queryAll(document, 'div.story-wrapper, article.story-wrapper')) {
       if (rootHasArticleAnchor(el)) candidates.add(el);
     }
     for (const a of queryAll(document, 'a[href]')) {
       if (!anchorLooksLikeArticle(a)) continue;
       const wrap =
-        a.closest('div.story-wrapper') || a.closest('section.story-wrapper');
+        a.closest('div.story-wrapper, article.story-wrapper') || a.closest('section.story-wrapper');
       if (wrap) candidates.add(wrap);
     }
     for (const el of queryAll(document, 'section.story-wrapper')) {
@@ -534,11 +536,11 @@
     for (const el of queryAll(document, 'div.story-wrapper[data-tpl="sli"]')) {
       candidates.add(el);
     }
-    for (const el of queryAll(document, 'div.story-wrapper')) {
+    for (const el of queryAll(document, 'div.story-wrapper, article.story-wrapper')) {
       candidates.add(el);
     }
     for (const el of queryAll(document, 'section.story-wrapper')) {
-      if (el.querySelector('div.story-wrapper')) continue;
+      if (el.querySelector('div.story-wrapper, article.story-wrapper')) continue;
       candidates.add(el);
     }
     for (const el of queryAll(document, '[data-testid$="-section"] article')) {
