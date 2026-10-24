@@ -62,6 +62,18 @@
     return articles;
   }
 
+  function isOpinionSummaryPackageArticle(elements) {
+    return [...elements].some(root => {
+      const link = headlineLink(root);
+      if (!link || !new URL(link.href).pathname.startsWith('/opinions/')) return false;
+      const section = root.closest('.table-in-grid');
+      if (!section) return false;
+      return [...section.querySelectorAll('a.label-link[href]')].some(label =>
+        /^opinions$/i.test(label.textContent.trim()) &&
+        !label.closest('nav, header, footer, [role="navigation"]'));
+    });
+  }
+
   function isHomepage() {
     return ['/', '', '/index.html'].includes(window.location.pathname);
   }
@@ -85,6 +97,7 @@
     getVisibilityTargets,
     getBlockTopicHaystack,
     getArticleUrl,
-    getArticleTitle
+    getArticleTitle,
+    isOpinionSummaryPackageArticle
   };
 })();

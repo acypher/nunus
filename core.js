@@ -464,7 +464,11 @@ function hostIsNytimes() {
 }
 
 function opinionNeedsSummary(site, articleId, elements) {
-  if (!hostIsNytimes() || !String(articleId).includes('/opinion/') ||
+  const supportedOpinion = hostIsNytimes()
+    ? String(articleId).includes('/opinion/')
+    : /^(www\.)?washingtonpost\.com$/.test(window.location.hostname) &&
+      String(articleId).includes('/opinions/');
+  if (!supportedOpinion ||
       !document.getElementById('nyt-opinion-summary-style') ||
       !site.isOpinionSummaryPackageArticle?.(elements)) return false;
   const key = normalizeArticleUrlKey(articleId);
